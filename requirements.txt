@@ -1,0 +1,6 @@
+langchain
+openai
+py pdf
+pip install chromadb
+pip isntall tiktoken
+pysqlite3-binary
