@@ -1,15 +1,19 @@
 import os
 import tempfile
 import streamlit as st
-from langchain.document_loaders import PyPDFLoader
+from pypdf import PdfReader  # pypdf2 사용
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
+from dotenv import load_dotenv
 
-# OpenAI API 키 설정 (환경 변수로 설정)
-os.environ["OPENAI_API_KEY"] = "your_openai_api_key"
+# Load environment variables from .env file
+load_dotenv()
+
+# API key 설정
+openai_api_key = os.getenv("OPENAI_API_KEY")  # 환경 변수에서 API 키 가져오기
 
 # 제목
 st.title("ChatPDF")
@@ -25,8 +29,9 @@ def pdf_to_document(upload_file):
         temp_filepath = os.path.join(temp_dir, upload_file.name)
         with open(temp_filepath, "wb") as f:
             f.write(upload_file.getvalue())
-        loader = PyPDFLoader(temp_filepath)
-        pages = loader.load_and_split()
+        # pypdf2로 PDF 읽기
+        reader = PdfReader(temp_filepath)
+        pages = [page.extract_text() for page in reader.pages if page.extract_text()]
     return pages
 
 # Handle file upload
@@ -41,19 +46,20 @@ if uploaded_file is not None:
             chunk_overlap=20,
             length_function=len
         )
-        texts = text_splitter.split_documents(pages)
+        # 페이지별 텍스트 분할
+        texts = text_splitter.create_documents(pages)
         
         # Embedding Model
-        embeddings_model = OpenAIEmbeddings()
+        embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
         
         # Load into Chroma Vectorstore with local persistence
         persist_directory = "./chroma_db"  # 로컬 데이터베이스 저장 위치 지정
         db = Chroma.from_documents(texts, embeddings_model, persist_directory=persist_directory)
         
         # Create a RetrievalQA chain
-        retriever = db.as_retriever()  # 괄호 추가
+        retriever = db.as_retriever()
         qa_chain = RetrievalQA.from_chain_type(
-            llm=ChatOpenAI(model_name="gpt-4", temperature=0),  # 모델 이름 수정
+            llm=ChatOpenAI(model_name="gpt-4", temperature=0, openai_api_key=openai_api_key),
             chain_type="stuff", 
             retriever=retriever
         )
@@ -68,3 +74,5 @@ if uploaded_file is not None:
             st.write("답변: ", answer)
     else:
         st.write("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
+
