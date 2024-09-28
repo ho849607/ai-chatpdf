@@ -1,6 +1,7 @@
 import os
 import tempfile
 import streamlit as st
+from PyPDF2 import PdfReader  # pypdf2 사용
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
@@ -28,6 +29,10 @@ def pdf_to_document(upload_file):
         temp_filepath = os.path.join(temp_dir, upload_file.name)
         with open(temp_filepath, "wb") as f:
             f.write(upload_file.getvalue())
+        # pypdf2로 PDF 읽기
+        reader = PdfReader(temp_filepath)
+        pages = [page.extract_text() for page in reader.pages if page.extract_text()]
+    return pages
 
 # Handle file upload
 if uploaded_file is not None:
@@ -58,5 +63,20 @@ if uploaded_file is not None:
             chain_type="stuff", 
             retriever=retriever
         )
+
+        # Question input
+        st.header("PDF에게 질문해보세요.")
+        question = st.text_input("질문을 입력하세요.")
+        
+        if st.button('질문하기'):
+            # Process the question and get the answer
+            answer = qa_chain.run(question)
+            st.write("답변: ", answer)
+    else:
+        st.write("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
+
+
+
 
 
