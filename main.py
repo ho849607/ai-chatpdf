@@ -1,3 +1,8 @@
+__import__('pysqlite3')
+import sys
+sys.module['sqlite3']=sys.modules.pop('psyqlite3')
+
+
 import os
 import streamlit as st
 from io import BytesIO
@@ -165,6 +170,7 @@ if uploaded_file is not None:
                             st.error(f"질문 처리 중 오류가 발생했습니다: {e}")
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
 
