@@ -1,8 +1,3 @@
-__import__('pysqlite3')
-import sys
-sys.module['sqlite3']=sys.modules.pop('psyqlite3')
-
-
 import os
 import streamlit as st
 from io import BytesIO
@@ -10,8 +5,8 @@ from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma  # langchain_community에서 임포트
-from langchain_community.chat_models import ChatOpenAI  # langchain_community에서 임포트
+from langchain.vectorstores import Chroma  # langchain에서 임포트
+from langchain.chat_models import ChatOpenAI  # langchain에서 임포트
 from langchain.chains import RetrievalQA
 from langchain.docstore.document import Document  # Document 클래스 임포트
 from langchain.llms import OpenAI
@@ -50,12 +45,12 @@ if uploaded_file is not None:
     if uploaded_file.type == "application/pdf":
         # PDF에서 텍스트 추출
         extracted_text = pdf_to_text(uploaded_file)
-        
+
         if not extracted_text.strip():
             st.error("PDF에서 텍스트를 추출할 수 없습니다. 다른 PDF를 시도해보세요.")
         else:
             st.success("PDF에서 텍스트를 추출했습니다.")
-            
+
             # 요약 섹션
             st.header("1. PDF 요약")
             if st.button("PDF 요약 생성"):
@@ -72,7 +67,7 @@ if uploaded_file is not None:
                         st.error(f"요약 생성 중 오류가 발생했습니다: {e}")
 
             st.write("---")
-            
+
             # 예상 시험 문제 섹션
             st.header("2. 예상 시험 문제 생성")
             if st.button("예상 시험 문제 생성"):
@@ -88,7 +83,7 @@ if uploaded_file is not None:
                         st.error(f"시험 문제 생성 중 오류가 발생했습니다: {e}")
 
             st.write("---")
-            
+
             # 퀴즈 섹션
             st.header("3. 학습 퀴즈")
             if st.button("학습 퀴즈 생성"):
@@ -104,7 +99,7 @@ if uploaded_file is not None:
                         st.error(f"퀴즈 생성 중 오류가 발생했습니다: {e}")
 
             st.write("---")
-            
+
             # PDF 내용에 대한 질문 섹션
             st.header("4. PDF 내용 질문하기")
             # 텍스트 분할기
@@ -116,13 +111,13 @@ if uploaded_file is not None:
             chunks = text_splitter.split_text(extracted_text)
             # 문서 생성
             texts = [Document(page_content=chunk) for chunk in chunks]
-            
+
             if not texts:
                 st.error("텍스트를 분할할 수 없습니다.")
             else:
                 # 임베딩 모델
                 embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
-                
+
                 # Chroma 벡터스토어에 로드
                 persist_directory = "./chroma_db"
                 collection_name = "pdf_collection"
@@ -136,7 +131,7 @@ if uploaded_file is not None:
                 except Exception as e:
                     st.error(f"Chroma 벡터스토어 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
-                
+
                 # RetrievalQA 체인 생성
                 retriever = db.as_retriever()
                 try:
@@ -153,10 +148,10 @@ if uploaded_file is not None:
                 except Exception as e:
                     st.error(f"RetrievalQA 체인 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
-                
+
                 # 질문 입력
                 question = st.text_input("궁금한 점을 질문하세요.", key="qa_question")
-                
+
                 if st.button('질문하기'):
                     if question.strip() == "":
                         st.error("질문을 입력해주세요.")
