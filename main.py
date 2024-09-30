@@ -1,14 +1,9 @@
-__import__('pysqlite3')
-import sys
-sys.module['pysqlite3']=sys.modules.pop('pysqlite3')
-
 import os
 import tempfile
 import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
-from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
@@ -35,12 +30,6 @@ st.write("---")
 uploaded_file = st.file_uploader("PDF 파일을 올려주세요", type=['pdf'])
 st.write("---")
 
-def pdf_to_document(uploaded_file):
-    temp_dir=tempfile.TemporaryDirectory()
-    temp_filepath=os.path.join(temp_dir.name, uploaded_file.name)
-    with open(temp_filepath,'wb')as f:
-        f.write(uploaded_file.getvalue())
-    loader=PyPDFLoader(temp_filepath)
 # PDF를 텍스트로 변환하는 함수
 def pdf_to_text(upload_file):
     try:
@@ -134,12 +123,14 @@ if uploaded_file is not None:
                 persist_directory = "./chroma_db"
                 collection_name = "pdf_collection"
                 try:
-                    db = Chroma.from_documents(
-                        texts,
-                        embedding=embeddings_model,
+                    # Chroma 인스턴스 생성
+                    db = Chroma(
+                        collection_name=collection_name,
                         persist_directory=persist_directory,
-                        collection_name=collection_name
+                        embedding_function=embeddings_model,
                     )
+                    # 문서 추가
+                    db.add_documents(texts)
                 except Exception as e:
                     st.error(f"Chroma 벡터스토어 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
