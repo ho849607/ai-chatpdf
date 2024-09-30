@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma  # langchain에서 임포트
-from langchain.chat_models import ChatOpenAI  # langchain에서 임포트
+from langchain.vectorstores import Chroma
+from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.docstore.document import Document  # Document 클래스 임포트
 from langchain.llms import OpenAI
