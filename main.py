@@ -10,8 +10,8 @@ from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.docstore.document import Document  # Document 클래스 임포트
-from langchain.llms import OpenAI
 from langchain.chains.summarize import load_summarize_chain
+from langchain.schema import HumanMessage  # HumanMessage 임포트
 
 # 환경 변수 로드
 load_dotenv()
@@ -57,11 +57,22 @@ if uploaded_file is not None:
             if st.button("PDF 요약 생성"):
                 with st.spinner("요약을 생성하고 있습니다..."):
                     try:
+                        # 텍스트 분할기 설정
+                        text_splitter = RecursiveCharacterTextSplitter(
+                            chunk_size=1000,
+                            chunk_overlap=200
+                        )
+                        texts = text_splitter.create_documents([extracted_text])
+
                         # 요약 생성
-                        llm = OpenAI(temperature=0, openai_api_key=openai_api_key)
+                        llm = ChatOpenAI(
+                            model_name="gpt-3.5-turbo",
+                            temperature=0,
+                            max_tokens=1500,
+                            openai_api_key=openai_api_key
+                        )
                         summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
-                        docs = [Document(page_content=extracted_text)]
-                        summary = summary_chain.run(docs)
+                        summary = summary_chain.run(texts)
                         st.write("## 요약 결과")
                         st.write(summary)
                     except Exception as e:
@@ -75,9 +86,16 @@ if uploaded_file is not None:
                 with st.spinner("시험 문제를 생성하고 있습니다..."):
                     try:
                         # 시험 문제 생성 프롬프트
-                        llm = OpenAI(temperature=0.5, openai_api_key=openai_api_key)
+                        llm = ChatOpenAI(
+                            model_name="gpt-3.5-turbo",
+                            temperature=0.5,
+                            max_tokens=1500,
+                            openai_api_key=openai_api_key
+                        )
                         prompt = f"다음 내용에 기반하여 예상되는 중요한 시험 문제 5개를 만들어주세요:\n\n{extracted_text}"
-                        questions = llm(prompt)
+                        messages = [HumanMessage(content=prompt)]
+                        response = llm.generate([messages])
+                        questions = response.generations[0][0].message.content
                         st.write("## 예상 시험 문제")
                         st.write(questions)
                     except Exception as e:
@@ -91,9 +109,16 @@ if uploaded_file is not None:
                 with st.spinner("퀴즈를 생성하고 있습니다..."):
                     try:
                         # 퀴즈 생성 프롬프트
-                        llm = OpenAI(temperature=0.5, openai_api_key=openai_api_key)
+                        llm = ChatOpenAI(
+                            model_name="gpt-3.5-turbo",
+                            temperature=0.5,
+                            max_tokens=1500,
+                            openai_api_key=openai_api_key
+                        )
                         prompt = f"다음 내용에 기반하여 객관식 퀴즈 5개를 만들어주세요. 각 질문에는 4개의 선택지가 있어야 하며, 정답을 표시해주세요:\n\n{extracted_text}"
-                        quiz = llm(prompt)
+                        messages = [HumanMessage(content=prompt)]
+                        response = llm.generate([messages])
+                        quiz = response.generations[0][0].message.content
                         st.write("## 생성된 퀴즈")
                         st.write(quiz)
                     except Exception as e:
@@ -108,10 +133,7 @@ if uploaded_file is not None:
                 chunk_size=500,
                 chunk_overlap=100
             )
-            # 텍스트 분할
-            chunks = text_splitter.split_text(extracted_text)
-            # 문서 생성
-            texts = [Document(page_content=chunk) for chunk in chunks]
+            texts = text_splitter.create_documents([extracted_text])
 
             if not texts:
                 st.error("텍스트를 분할할 수 없습니다.")
@@ -141,6 +163,7 @@ if uploaded_file is not None:
                     llm = ChatOpenAI(
                         model_name="gpt-3.5-turbo",
                         temperature=0,
+                        max_tokens=1500,
                         openai_api_key=openai_api_key
                     )
                     qa_chain = RetrievalQA.from_chain_type(
@@ -160,14 +183,70 @@ if uploaded_file is not None:
                         st.error("질문을 입력해주세요.")
                     else:
                         # 질문 처리 및 답변 생성
-                        try:
-                            answer = qa_chain.run(question)
-                            st.write("### 답변")
-                            st.write(answer)
-                        except Exception as e:
-                            st.error(f"질문 처리 중 오류가 발생했습니다: {e}")
+                        with st.spinner("답변을 생성하고 있습니다..."):
+                            try:
+                                answer = qa_chain.run(question)
+                                st.write("### 답변")
+                                st.write(answer)
+                            except Exception as e:
+                                st.error(f"질문 처리 중 오류가 발생했습니다: {e}")
+
+            st.write("---")
+
+            # GPT가 사용자에게 질문하는 섹션
+            st.header("5. GPT가 묻는 질문에 답변해보세요")
+
+            if st.button("GPT 질문 생성"):
+                with st.spinner("GPT가 질문을 생성하고 있습니다..."):
+                    try:
+                        # 질문 생성
+                        llm = ChatOpenAI(
+                            model_name="gpt-3.5-turbo",
+                            temperature=0.7,
+                            max_tokens=1500,
+                            openai_api_key=openai_api_key
+                        )
+                        prompt = f"다음 텍스트에서 중요한 개념이나 주제에 대해 사용자가 더 깊이 생각할 수 있도록 질문 5개를 만들어주세요:\n\n{extracted_text}"
+                        messages = [HumanMessage(content=prompt)]
+                        response = llm.generate([messages])
+                        gpt_questions = response.generations[0][0].message.content
+                        st.session_state['gpt_questions'] = gpt_questions  # 세션에 저장
+                        st.write("## GPT가 생성한 질문")
+                        st.write(gpt_questions)
+                    except Exception as e:
+                        st.error(f"질문 생성 중 오류가 발생했습니다: {e}")
+
+            # GPT의 질문이 생성되었을 때만 표시
+            if 'gpt_questions' in st.session_state:
+                st.write("---")
+                st.write("### GPT의 질문에 답변해보세요.")
+                user_response = st.text_area("질문에 대한 답변을 입력하세요.", key="user_response")
+
+                if st.button("답변 제출"):
+                    if user_response.strip() == "":
+                        st.error("답변을 입력해주세요.")
+                    else:
+                        with st.spinner("GPT가 답변을 검토하고 있습니다..."):
+                            try:
+                                # 피드백 생성
+                                llm = ChatOpenAI(
+                                    model_name="gpt-3.5-turbo",
+                                    temperature=0,
+                                    max_tokens=1000,
+                                    openai_api_key=openai_api_key
+                                )
+                                feedback_prompt = f"사용자의 답변: {user_response}\n이 답변에 대해 친절하고 건설적인 피드백을 3~5문장으로 제공해주세요."
+                                messages = [HumanMessage(content=feedback_prompt)]
+                                response = llm.generate([messages])
+                                feedback = response.generations[0][0].message.content
+                                st.write("## GPT의 피드백")
+                                st.write(feedback)
+                            except Exception as e:
+                                st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")
+
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
 
