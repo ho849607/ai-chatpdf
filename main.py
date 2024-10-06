@@ -9,6 +9,7 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
+from langchain_community.embeddings import SomeCommunityEmbeddingModel 
 from langchain.schema import Document  # Document 클래스 임포트
 from langchain.chains.summarize import load_summarize_chain
 from langchain.schema import HumanMessage  # HumanMessage 임포트
@@ -21,7 +22,8 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     st.error("OpenAI API 키가 설정되지 않았습니다.")
     st.stop()
-
+#Community 모델 사용 (필요시 대체 사용)
+community_embeddings_model = SomeCommunityEmbeddingModel()
 # 제목
 st.title("PDF 학습 도우미")
 st.write("---")
@@ -246,7 +248,6 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
 
 
 
