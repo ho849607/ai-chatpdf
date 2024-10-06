@@ -5,4 +5,4 @@ chromadb
 python-dotenv
 pdfplumber
 pillow
-
+langchain-community
