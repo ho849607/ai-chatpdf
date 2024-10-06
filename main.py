@@ -9,7 +9,7 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-from langchain.docstore.document import Document  # Document 클래스 임포트
+from langchain.schema import Document  # Document 클래스 임포트
 from langchain.chains.summarize import load_summarize_chain
 from langchain.schema import HumanMessage  # HumanMessage 임포트
 
@@ -94,8 +94,8 @@ if uploaded_file is not None:
                         )
                         prompt = f"다음 내용에 기반하여 예상되는 중요한 시험 문제 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
-                        response = llm.generate([messages])
-                        questions = response.generations[0][0].message.content
+                        response = llm(messages)
+                        questions = response.content
                         st.write("## 예상 시험 문제")
                         st.write(questions)
                     except Exception as e:
@@ -117,8 +117,8 @@ if uploaded_file is not None:
                         )
                         prompt = f"다음 내용에 기반하여 객관식 퀴즈 5개를 만들어주세요. 각 질문에는 4개의 선택지가 있어야 하며, 정답을 표시해주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
-                        response = llm.generate([messages])
-                        quiz = response.generations[0][0].message.content
+                        response = llm(messages)
+                        quiz = response.content
                         st.write("## 생성된 퀴즈")
                         st.write(quiz)
                     except Exception as e:
@@ -208,8 +208,8 @@ if uploaded_file is not None:
                         )
                         prompt = f"다음 텍스트에서 중요한 개념이나 주제에 대해 사용자가 더 깊이 생각할 수 있도록 질문 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
-                        response = llm.generate([messages])
-                        gpt_questions = response.generations[0][0].message.content
+                        response = llm(messages)
+                        gpt_questions = response.content
                         st.session_state['gpt_questions'] = gpt_questions  # 세션에 저장
                         st.write("## GPT가 생성한 질문")
                         st.write(gpt_questions)
@@ -237,8 +237,8 @@ if uploaded_file is not None:
                                 )
                                 feedback_prompt = f"사용자의 답변: {user_response}\n이 답변에 대해 친절하고 건설적인 피드백을 3~5문장으로 제공해주세요."
                                 messages = [HumanMessage(content=feedback_prompt)]
-                                response = llm.generate([messages])
-                                feedback = response.generations[0][0].message.content
+                                response = llm(messages)
+                                feedback = response.content
                                 st.write("## GPT의 피드백")
                                 st.write(feedback)
                             except Exception as e:
