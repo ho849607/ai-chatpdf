@@ -17,7 +17,7 @@ from langchain.schema import HumanMessage  # HumanMessage 임포트
 load_dotenv()
 
 # API 키 설정
-openai_api_key = os.dotenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # 제목
 st.title("PDF 학습 도우미")
