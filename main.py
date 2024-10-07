@@ -13,15 +13,21 @@ from langchain.schema import Document  # Document 클래스 임포트
 from langchain.chains.summarize import load_summarize_chain
 from langchain.schema import HumanMessage  # HumanMessage 임포트
 import openai  # OpenAI 패키지 임포트
+from pathlib import Path
 
 # 환경 변수 로드
-load_dotenv()
+dotenv_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=dotenv_path)
 
 # API 키 설정
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
-    st.error("OpenAI API 키가 설정되지 않았습니다.")
-    st.stop()
+    # Streamlit 사이드바에서 API 키 입력받기
+    st.sidebar.title("API 설정")
+    openai_api_key = st.sidebar.text_input("OpenAI API 키를 입력하세요.", type="password")
+    if not openai_api_key:
+        st.error("OpenAI API 키가 설정되지 않았습니다.")
+        st.stop()
 
 # OpenAI API 키 설정
 openai.api_key = openai_api_key
@@ -244,6 +250,7 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
 
