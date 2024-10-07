@@ -17,7 +17,7 @@ from langchain.schema import HumanMessage  # HumanMessage 임포트
 load_dotenv()
 
 # API 키 설정
-openai_api_key = os.getenv("sk-VxIYTCnDScEfBkMrlMSdtWVqVQ28yvEBQ67QJgucNjT3BlbkFJ4tHjrLhxvbHHT7bdtkGXqTUtZd7JY1gF5v7be1XTEA")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     st.error("OpenAI API 키가 설정되지 않았습니다.")
     st.stop()
@@ -69,7 +69,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기서 openai_api_key 사용
+                            openai_api_key=openai_api_key
                         )
                         summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
                         summary = summary_chain.run(texts)
@@ -90,7 +90,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.5,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기서 openai_api_key 사용
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 내용에 기반하여 예상되는 중요한 시험 문제 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -113,7 +113,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.5,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기서 openai_api_key 사용
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 내용에 기반하여 객관식 퀴즈 5개를 만들어주세요. 각 질문에는 4개의 선택지가 있어야 하며, 정답을 표시해주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -139,7 +139,7 @@ if uploaded_file is not None:
                 st.error("텍스트를 분할할 수 없습니다.")
             else:
                 # 임베딩 모델
-                embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)  # 여기서 openai_api_key 사용
+                embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
                 # Chroma 벡터스토어에 로드
                 persist_directory = "./chroma_db"
@@ -164,7 +164,7 @@ if uploaded_file is not None:
                         model_name="gpt-3.5-turbo",
                         temperature=0,
                         max_tokens=1500,
-                        openai_api_key=openai_api_key  # 여기서 openai_api_key 사용
+                        openai_api_key=openai_api_key
                     )
                     qa_chain = RetrievalQA.from_chain_type(
                         llm=llm,
@@ -204,7 +204,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.7,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기서 openai_api_key 사용
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 텍스트에서 중요한 개념이나 주제에 대해 사용자가 더 깊이 생각할 수 있도록 질문 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -233,7 +233,7 @@ if uploaded_file is not None:
                                     model_name="gpt-3.5-turbo",
                                     temperature=0,
                                     max_tokens=1000,
-                                    openai_api_key=openai_api_key  # 여기서 openai_api_key 사용
+                                    openai_api_key=openai_api_key
                                 )
                                 feedback_prompt = f"사용자의 답변: {user_response}\n이 답변에 대해 친절하고 건설적인 피드백을 3~5문장으로 제공해주세요."
                                 messages = [HumanMessage(content=feedback_prompt)]
@@ -246,6 +246,7 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
 
