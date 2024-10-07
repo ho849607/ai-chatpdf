@@ -18,9 +18,6 @@ load_dotenv()
 
 # API 키 설정
 openai_api_key = os.dotenv("OPENAI_API_KEY")
-if not openai_api_key:
-    st.error("OpenAI API 키가 설정되지 않았습니다.")
-    st.stop()
 
 # 제목
 st.title("PDF 학습 도우미")
