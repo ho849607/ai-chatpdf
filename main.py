@@ -17,7 +17,7 @@ from langchain.schema import HumanMessage  # HumanMessage 임포트
 load_dotenv()
 
 # API 키 설정
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("sk-VxIYTCnDScEfBkMrlMSdtWVqVQ28yvEBQ67QJgucNjT3BlbkFJ4tHjrLhxvbHHT7bdtkGXqTUtZd7JY1gF5v7be1XTEA")
 if not openai_api_key:
     st.error("OpenAI API 키가 설정되지 않았습니다.")
     st.stop()
@@ -246,6 +246,7 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
 
