@@ -15,6 +15,11 @@ from langchain.schema import HumanMessage  # HumanMessage 임포트
 import openai  # OpenAI 패키지 임포트
 from pathlib import Path
 
+# 필요한 패키지 설치 (주석 처리된 상태로 제공)
+# !pip install tiktoken
+# !pip install chromadb
+# !pip install langchain openai streamlit
+
 # 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=dotenv_path)
@@ -31,9 +36,6 @@ if not openai_api_key:
 
 # OpenAI API 키 설정
 openai.api_key = openai_api_key
-
-# 디버깅용으로 API 키 출력 (실제 코드에서는 제거하세요)
-# print(f"OpenAI API 키: {openai_api_key}")
 
 # 제목
 st.title("PDF 학습 도우미")
@@ -75,21 +77,24 @@ if uploaded_file is not None:
                             chunk_size=1000,
                             chunk_overlap=200
                         )
-                        texts = text_splitter.create_documents([extracted_text])
+                        texts = text_splitter.split_text(extracted_text)
+                        docs = [Document(page_content=t) for t in texts]
 
                         # 요약 생성
                         llm = ChatOpenAI(
                             model_name="gpt-3.5-turbo",
                             temperature=0,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기에서 openai_api_key를 전달
+                            openai_api_key=openai_api_key
                         )
                         summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
-                        summary = summary_chain.run(texts)
+                        summary = summary_chain({"input_documents": docs}, return_only_outputs=True)
                         st.write("## 요약 결과")
-                        st.write(summary)
+                        st.write(summary['output_text'])
                     except Exception as e:
                         st.error(f"요약 생성 중 오류가 발생했습니다: {e}")
+                        import traceback
+                        st.error(traceback.format_exc())
 
             st.write("---")
 
@@ -103,7 +108,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.5,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기에서 openai_api_key를 전달
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 내용에 기반하여 예상되는 중요한 시험 문제 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -113,6 +118,8 @@ if uploaded_file is not None:
                         st.write(questions)
                     except Exception as e:
                         st.error(f"시험 문제 생성 중 오류가 발생했습니다: {e}")
+                        import traceback
+                        st.error(traceback.format_exc())
 
             st.write("---")
 
@@ -126,7 +133,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.5,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기에서 openai_api_key를 전달
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 내용에 기반하여 객관식 퀴즈 5개를 만들어주세요. 각 질문에는 4개의 선택지가 있어야 하며, 정답을 표시해주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -136,6 +143,8 @@ if uploaded_file is not None:
                         st.write(quiz)
                     except Exception as e:
                         st.error(f"퀴즈 생성 중 오류가 발생했습니다: {e}")
+                        import traceback
+                        st.error(traceback.format_exc())
 
             st.write("---")
 
@@ -146,13 +155,14 @@ if uploaded_file is not None:
                 chunk_size=500,
                 chunk_overlap=100
             )
-            texts = text_splitter.create_documents([extracted_text])
+            texts = text_splitter.split_text(extracted_text)
+            docs = [Document(page_content=t) for t in texts]
 
             if not texts:
                 st.error("텍스트를 분할할 수 없습니다.")
             else:
                 # 임베딩 모델
-                embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)  # 여기에서 openai_api_key를 전달
+                embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
                 # Chroma 벡터스토어에 로드
                 persist_directory = "./chroma_db"
@@ -165,9 +175,11 @@ if uploaded_file is not None:
                         embedding_function=embeddings_model,
                     )
                     # 문서 추가
-                    db.add_documents(texts)
+                    db.add_documents(docs)
                 except Exception as e:
                     st.error(f"Chroma 벡터스토어 생성 중 오류가 발생했습니다: {e}")
+                    import traceback
+                    st.error(traceback.format_exc())
                     st.stop()
 
                 # RetrievalQA 체인 생성
@@ -177,7 +189,7 @@ if uploaded_file is not None:
                         model_name="gpt-3.5-turbo",
                         temperature=0,
                         max_tokens=1500,
-                        openai_api_key=openai_api_key  # 여기에서 openai_api_key를 전달
+                        openai_api_key=openai_api_key
                     )
                     qa_chain = RetrievalQA.from_chain_type(
                         llm=llm,
@@ -186,6 +198,8 @@ if uploaded_file is not None:
                     )
                 except Exception as e:
                     st.error(f"RetrievalQA 체인 생성 중 오류가 발생했습니다: {e}")
+                    import traceback
+                    st.error(traceback.format_exc())
                     st.stop()
 
                 # 질문 입력
@@ -203,6 +217,8 @@ if uploaded_file is not None:
                                 st.write(answer)
                             except Exception as e:
                                 st.error(f"질문 처리 중 오류가 발생했습니다: {e}")
+                                import traceback
+                                st.error(traceback.format_exc())
 
             st.write("---")
 
@@ -217,7 +233,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.7,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 여기에서 openai_api_key를 전달
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 텍스트에서 중요한 개념이나 주제에 대해 사용자가 더 깊이 생각할 수 있도록 질문 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -228,6 +244,8 @@ if uploaded_file is not None:
                         st.write(gpt_questions)
                     except Exception as e:
                         st.error(f"질문 생성 중 오류가 발생했습니다: {e}")
+                        import traceback
+                        st.error(traceback.format_exc())
 
             # GPT의 질문이 생성되었을 때만 표시
             if 'gpt_questions' in st.session_state:
@@ -245,8 +263,8 @@ if uploaded_file is not None:
                                 llm = ChatOpenAI(
                                     model_name="gpt-3.5-turbo",
                                     temperature=0,
-                                    max_tokens=1000,
-                                    openai_api_key=openai_api_key  # 여기에서 openai_api_key를 전달
+                                    max_tokens=1500,
+                                    openai_api_key=openai_api_key
                                 )
                                 feedback_prompt = f"사용자의 답변: {user_response}\n이 답변에 대해 친절하고 건설적인 피드백을 3~5문장으로 제공해주세요."
                                 messages = [HumanMessage(content=feedback_prompt)]
@@ -256,6 +274,8 @@ if uploaded_file is not None:
                                 st.write(feedback)
                             except Exception as e:
                                 st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")
+                                import traceback
+                                st.error(traceback.format_exc())
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
