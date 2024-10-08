@@ -2,6 +2,7 @@ streamlit
 openai
 langchain
 chromadb
+ticktoken
 python-dotenv
 pdfplumber
 pillow
