@@ -1,6 +1,6 @@
 __import__('pysqlite3')
 import sys
-sys.modules['sqlite3']=sys.module.pop('pysqlite3')
+sys.modules['sqlite3']=sys.modules.pop('pysqlite3')
 import os
 import tempfile
 import streamlit as st
@@ -259,6 +259,7 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
 
