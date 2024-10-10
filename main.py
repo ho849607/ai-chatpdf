@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import DocArrayInMemorySearch  # DocArrayInMemorySearch 임포트
+from langchain.vectorstores import docarray  # 메모리 기반 벡터스토어 사용
+from langchain.vectorstores import MemoryVectorStore
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.chains.summarize import load_summarize_chain
@@ -149,9 +150,9 @@ if uploaded_file is not None:
                 # 임베딩 모델
                 embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-                # DocArrayInMemorySearch 벡터스토어 생성
+                # MemoryVectorStore 벡터스토어 생성
                 try:
-                    db = DocArrayInMemorySearch.from_documents(texts, embeddings_model)
+                    db = MemoryVectorStore.from_documents(texts, embeddings_model)
                 except Exception as e:
                     st.error(f"벡터스토어 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
@@ -245,7 +246,6 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
 
 
 
