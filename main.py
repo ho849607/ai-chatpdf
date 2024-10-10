@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import DocArrayInMemorySearch  # 대체 벡터스토어 임포트
+from langchain.vectorstores import DocArrayInMemorySearch  # DocArrayInMemorySearch 임포트
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.chains.summarize import load_summarize_chain
@@ -245,7 +245,6 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
 
 
 
