@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import streamlit as st
 from io import BytesIO
@@ -152,21 +153,29 @@ if uploaded_file is not None:
                 # 임베딩 모델
                 embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-                # Chroma 벡터스토어에 로드
+                # 기존 데이터베이스 삭제
                 persist_directory = "./chroma_db"
-                collection_name = "pdf_collection"
+                if os.path.exists(persist_directory):
+                    shutil.rmtree(persist_directory)
 
                 # DuckDB 설정 추가
-                client_settings = Settings(chroma_db_impl="duckdb+parquet", persist_directory=persist_directory)
+                client_settings = Settings(
+                    chroma_db_impl="duckdb+parquet",
+                    persist_directory=persist_directory
+                )
 
                 try:
-                    # Chroma 인스턴스 생성 (DuckDB 사용)
+                    # Chroma 클라이언트 생성
+                    import chromadb
+                    client = chromadb.Client(client_settings)
+
+                    # Chroma 벡터스토어 생성
                     db = Chroma(
-                        collection_name=collection_name,
-                        persist_directory=persist_directory,
+                        collection_name="pdf_collection",
                         embedding_function=embeddings_model,
-                        client_settings=client_settings
+                        client=client
                     )
+
                     # 문서 추가
                     db.add_documents(texts)
                 except Exception as e:
