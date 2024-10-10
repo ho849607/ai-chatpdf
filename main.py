@@ -1,5 +1,4 @@
 import os
-import shutil
 import tempfile
 import streamlit as st
 from io import BytesIO
@@ -7,7 +6,7 @@ from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import FAISS  # FAISS 임포트
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
@@ -15,7 +14,6 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
-from chromadb.config import Settings  # DuckDB 설정을 위해 추가
 
 # 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
@@ -153,33 +151,11 @@ if uploaded_file is not None:
                 # 임베딩 모델
                 embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-                # 기존 데이터베이스 삭제
-                persist_directory = "./chroma_db"
-                if os.path.exists(persist_directory):
-                    shutil.rmtree(persist_directory)
-
-                # DuckDB 설정 추가
-                client_settings = Settings(
-                    chroma_db_impl="duckdb+parquet",
-                    persist_directory=persist_directory
-                )
-
+                # FAISS 벡터스토어 생성
                 try:
-                    # Chroma 클라이언트 생성
-                    import chromadb
-                    client = chromadb.Client(client_settings)
-
-                    # Chroma 벡터스토어 생성
-                    db = Chroma(
-                        collection_name="pdf_collection",
-                        embedding_function=embeddings_model,
-                        client=client
-                    )
-
-                    # 문서 추가
-                    db.add_documents(texts)
+                    db = FAISS.from_documents(texts, embeddings_model)
                 except Exception as e:
-                    st.error(f"Chroma 벡터스토어 생성 중 오류가 발생했습니다: {e}")
+                    st.error(f"FAISS 벡터스토어 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
 
                 # RetrievalQA 체인 생성
@@ -271,7 +247,6 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
 
 
 
