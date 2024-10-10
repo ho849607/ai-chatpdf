@@ -1,23 +1,19 @@
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3']=sys.modules.pop('pysqlite3')
-
 import os
-import tempfile
 import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings  # 수정: langchain.embeddings로 변경
-from langchain.vectorstores import Chroma
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import MemoryVectorStore  # 메모리 기반 벡터스토어 사용
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-from langchain.schema import Document  # Document 클래스 임포트
 from langchain.chains.summarize import load_summarize_chain
-from langchain.schema import HumanMessage  # HumanMessage 임포트
-from langchain.vectorstores import FAISS
-import openai  # OpenAI 패키지 임포트
+from langchain.schema import HumanMessage
+import openai
 from pathlib import Path
 
 # 환경 변수 로드
@@ -36,8 +32,6 @@ if not openai_api_key:
 
 # OpenAI API 키 설정
 openai.api_key = openai_api_key
-
-
 
 # 제목
 st.title("PDF 학습 도우미")
@@ -86,7 +80,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 수정: API 키 전달
+                            openai_api_key=openai_api_key
                         )
                         summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
                         summary = summary_chain.run(texts)
@@ -107,7 +101,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.5,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 수정: API 키 전달
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 내용에 기반하여 예상되는 중요한 시험 문제 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -130,7 +124,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.5,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 수정: API 키 전달
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 내용에 기반하여 객관식 퀴즈 5개를 만들어주세요. 각 질문에는 4개의 선택지가 있어야 하며, 정답을 표시해주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -156,22 +150,13 @@ if uploaded_file is not None:
                 st.error("텍스트를 분할할 수 없습니다.")
             else:
                 # 임베딩 모델
-                embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)  # 수정: API 키 전달
+                embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-                # Chroma 벡터스토어에 로드
-                persist_directory = "./chroma_db"
-                collection_name = "pdf_collection"
+                # MemoryVectorStore 벡터스토어 생성
                 try:
-                    # Chroma 인스턴스 생성
-                    db = Chroma(
-                        collection_name=collection_name,
-                        persist_directory=persist_directory,
-                        embedding_function=embeddings_model,
-                    )
-                    # 문서 추가
-                    db.add_documents(texts)
+                    db = MemoryVectorStore.from_documents(texts, embeddings_model)
                 except Exception as e:
-                    st.error(f"Chroma 벡터스토어 생성 중 오류가 발생했습니다: {e}")
+                    st.error(f"벡터스토어 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
 
                 # RetrievalQA 체인 생성
@@ -181,7 +166,7 @@ if uploaded_file is not None:
                         model_name="gpt-3.5-turbo",
                         temperature=0,
                         max_tokens=1500,
-                        openai_api_key=openai_api_key  # 수정: API 키 전달
+                        openai_api_key=openai_api_key
                     )
                     qa_chain = RetrievalQA.from_chain_type(
                         llm=llm,
@@ -221,7 +206,7 @@ if uploaded_file is not None:
                             model_name="gpt-3.5-turbo",
                             temperature=0.7,
                             max_tokens=1500,
-                            openai_api_key=openai_api_key  # 수정: API 키 전달
+                            openai_api_key=openai_api_key
                         )
                         prompt = f"다음 텍스트에서 중요한 개념이나 주제에 대해 사용자가 더 깊이 생각할 수 있도록 질문 5개를 만들어주세요:\n\n{extracted_text}"
                         messages = [HumanMessage(content=prompt)]
@@ -249,8 +234,8 @@ if uploaded_file is not None:
                                 llm = ChatOpenAI(
                                     model_name="gpt-3.5-turbo",
                                     temperature=0,
-                                    max_tokens=4960,
-                                    openai_api_key=openai_api_key  # 수정: API 키 전달
+                                    max_tokens=1500,
+                                    openai_api_key=openai_api_key
                                 )
                                 feedback_prompt = f"사용자의 답변: {user_response}\n이 답변에 대해 친절하고 건설적인 피드백을 3~5문장으로 제공해주세요."
                                 messages = [HumanMessage(content=feedback_prompt)]
