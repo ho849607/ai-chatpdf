@@ -5,8 +5,7 @@ from dotenv import load_dotenv
 import pdfplumber  # PDF 파일에서 텍스트 추출
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import docarray  # 메모리 기반 벡터스토어 사용
-from langchain.vectorstores import MemoryVectorStore
+from langchain.vectorstores import Chroma  # Chroma 벡터스토어 임포트
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.chains.summarize import load_summarize_chain
@@ -150,9 +149,13 @@ if uploaded_file is not None:
                 # 임베딩 모델
                 embeddings_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-                # MemoryVectorStore 벡터스토어 생성
+                # Chroma 벡터스토어 생성 (인메모리 모드)
                 try:
-                    db = MemoryVectorStore.from_documents(texts, embeddings_model)
+                    db = Chroma.from_documents(
+                        texts,
+                        embeddings_model,
+                        persist_directory=None  # 인메모리 모드 설정
+                    )
                 except Exception as e:
                     st.error(f"벡터스토어 생성 중 오류가 발생했습니다: {e}")
                     st.stop()
