@@ -1,3 +1,6 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3']=sys.module.pop('pysqlite3')
 import os
 import tempfile
 import streamlit as st
