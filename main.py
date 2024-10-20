@@ -3,10 +3,10 @@ import sys
 import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
-import pdfplumber  # PDF 파일에서 텍스트 추출
+import pdfplumber
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import DocArrayInMemorySearch  # 인메모리 벡터스토어 사용
+from langchain.vectorstores import DocArrayInMemorySearch
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.chains.summarize import load_summarize_chain
@@ -21,7 +21,6 @@ load_dotenv(dotenv_path=dotenv_path)
 # API 키 설정
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
-    # Streamlit 사이드바에서 API 키 입력받기
     st.sidebar.title("API 설정")
     openai_api_key = st.sidebar.text_input("OpenAI API 키를 입력하세요.", type="password")
     if not openai_api_key:
@@ -58,9 +57,9 @@ def generate_summary(extracted_text):
     )
     texts = text_splitter.create_documents([extracted_text])
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",  # GPT-4 모델로 변경
         temperature=0,
-        max_tokens=1500,
+        max_tokens=2000,
         openai_api_key=openai_api_key
     )
     summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
@@ -70,9 +69,9 @@ def generate_summary(extracted_text):
 # GPT 질문 생성 함수
 def generate_gpt_questions(extracted_text):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",  # GPT-4 모델로 변경
         temperature=0.7,
-        max_tokens=1500,
+        max_tokens=2000,
         openai_api_key=openai_api_key
     )
     prompt = f"다음 텍스트에서 중요한 개념이나 주제에 대해 사용자가 더 깊이 생각할 수 있도록 질문 5개를 만들어주세요:\n\n{extracted_text}"
@@ -83,9 +82,9 @@ def generate_gpt_questions(extracted_text):
 # 예상 시험 문제 생성 함수
 def generate_exam_questions(extracted_text):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",  # GPT-4 모델로 변경
         temperature=0.5,
-        max_tokens=1500,
+        max_tokens=2000,
         openai_api_key=openai_api_key
     )
     prompt = f"다음 내용에 기반하여 예상되는 중요한 시험 문제 5개를 만들어주세요:\n\n{extracted_text}"
@@ -96,9 +95,9 @@ def generate_exam_questions(extracted_text):
 # 주요 키워드 추출 함수
 def extract_keywords(extracted_text):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",  # GPT-4 모델로 변경
         temperature=0.5,
-        max_tokens=1500,
+        max_tokens=2000,
         openai_api_key=openai_api_key
     )
     prompt = f"다음 텍스트에서 주요 키워드 10개를 추출해 주세요:\n\n{extracted_text}"
@@ -106,7 +105,7 @@ def extract_keywords(extracted_text):
     response = llm(messages)
     return response.content
 
-# 파일 업로드 처리
+# 파일 업로드 처리 및 자동 실행
 if uploaded_file is not None and uploaded_file.type == "application/pdf":
     st.success("PDF 업로드 완료. 내용을 처리 중입니다...")
 
@@ -138,6 +137,5 @@ if uploaded_file is not None and uploaded_file.type == "application/pdf":
 else:
     if uploaded_file is not None:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
 
 
