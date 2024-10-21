@@ -3,15 +3,13 @@ import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
 import pdfplumber
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import Document
+from langchain.schema import Document, HumanMessage
 from langchain.chains.summarize import load_summarize_chain
-from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
 import nltk
-from nltk.tokenize import word_tokenize
+from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 
 # ----------------------- NLTK 설정 시작 -----------------------
@@ -105,66 +103,92 @@ def extract_and_search_terms(summary_text):
 
 # 요약 생성 함수
 def summarize_pdf(text):
-    # 텍스트 분할기 설정
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
-    )
-    texts = text_splitter.split_text(text)
-    docs = [Document(page_content=t) for t in texts]
+    try:
+        # 문장 단위로 텍스트를 분할
+        sentences = sent_tokenize(text, language='english')
+        
+        # 청크 생성 (1000자당 200자 오버랩)
+        chunk_size = 1000
+        chunk_overlap = 200
+        chunks = []
+        current_chunk = ""
+        for sentence in sentences:
+            if len(current_chunk) + len(sentence) + 1 > chunk_size:
+                chunks.append(current_chunk.strip())
+                current_chunk = current_chunk[-chunk_overlap:]  # 오버랩 유지
+            current_chunk += " " + sentence
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+        
+        docs = [Document(page_content=chunk) for chunk in chunks]
 
-    # 요약 생성
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
-    summary = summary_chain({"input_documents": docs}, return_only_outputs=True)
-    return summary['output_text']
+        # 요약 생성
+        llm = ChatOpenAI(
+            model_name="gpt-3.5-turbo",
+            temperature=0,
+            max_tokens=1500,
+            openai_api_key=openai_api_key
+        )
+        summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
+        summary = summary_chain({"input_documents": docs}, return_only_outputs=True)
+        return summary['output_text']
+    except Exception as e:
+        st.error(f"요약 생성 중 오류 발생: {e}")
+        return ""
 
 # 예상 시험 문제 생성 함수
 def generate_exam_questions(text):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.5,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = f"Based on the following content, create 5 important exam questions:\n\n{text}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    questions = response.content
-    return questions
+    try:
+        llm = ChatOpenAI(
+            model_name="gpt-3.5-turbo",
+            temperature=0.5,
+            max_tokens=1500,
+            openai_api_key=openai_api_key
+        )
+        prompt = f"Based on the following content, create 5 important exam questions:\n\n{text}"
+        messages = [HumanMessage(content=prompt)]
+        response = llm(messages)
+        questions = response.content
+        return questions
+    except Exception as e:
+        st.error(f"시험 문제 생성 중 오류 발생: {e}")
+        return ""
 
 # 퀴즈 생성 함수
 def generate_quiz(text):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.5,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    quiz = response.content
-    return quiz
+    try:
+        llm = ChatOpenAI(
+            model_name="gpt-3.5-turbo",
+            temperature=0.5,
+            max_tokens=1500,
+            openai_api_key=openai_api_key
+        )
+        prompt = f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}"
+        messages = [HumanMessage(content=prompt)]
+        response = llm(messages)
+        quiz = response.content
+        return quiz
+    except Exception as e:
+        st.error(f"퀴즈 생성 중 오류 발생: {e}")
+        return ""
 
 # GPT 질문 생성 함수
 def generate_gpt_questions(text):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.7,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = f"From the following text, create 5 questions that encourage deeper thinking about important concepts or topics:\n\n{text}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    gpt_questions = response.content
-    return gpt_questions
+    try:
+        llm = ChatOpenAI(
+            model_name="gpt-3.5-turbo",
+            temperature=0.7,
+            max_tokens=1500,
+            openai_api_key=openai_api_key
+        )
+        prompt = f"From the following text, create 5 questions that encourage deeper thinking about important concepts or topics:\n\n{text}"
+        messages = [HumanMessage(content=prompt)]
+        response = llm(messages)
+        gpt_questions = response.content
+        return gpt_questions
+    except Exception as e:
+        st.error(f"GPT 질문 생성 중 오류 발생: {e}")
+        return ""
 
 # 파일 업로드 처리
 if uploaded_file is not None:
@@ -180,52 +204,41 @@ if uploaded_file is not None:
 
             # 자동으로 요약, 시험 문제, 퀴즈, GPT 질문 생성
             with st.spinner("요약을 생성하고 있습니다..."):
-                try:
-                    summary = summarize_pdf(extracted_text)
+                summary = summarize_pdf(extracted_text)
+                if summary:
                     st.write("## 요약 결과")
                     st.write(summary)
-                except Exception as e:
-                    st.error(f"요약 생성 중 오류 발생: {e}")
 
             with st.spinner("요약 내 단어를 검색하고 있습니다..."):
-                try:
-                    term_info = extract_and_search_terms(summary)
+                term_info = extract_and_search_terms(summary)
+                if term_info:
                     st.write("## 요약 내 중요한 단어 정보")
                     for term, info in term_info.items():
                         st.write(f"### {term}")
                         st.write(info)
-                except Exception as e:
-                    st.error(f"단어 정보 검색 중 오류 발생: {e}")
 
             with st.spinner("시험 문제를 생성하고 있습니다..."):
-                try:
-                    questions = generate_exam_questions(extracted_text)
+                questions = generate_exam_questions(extracted_text)
+                if questions:
                     st.write("## 예상 시험 문제")
                     st.write(questions)
-                except Exception as e:
-                    st.error(f"시험 문제 생성 중 오류 발생: {e}")
 
             with st.spinner("퀴즈를 생성하고 있습니다..."):
-                try:
-                    quiz = generate_quiz(extracted_text)
+                quiz = generate_quiz(extracted_text)
+                if quiz:
                     st.write("## 생성된 퀴즈")
                     st.write(quiz)
-                except Exception as e:
-                    st.error(f"퀴즈 생성 중 오류 발생: {e}")
 
             with st.spinner("GPT가 질문을 생성하고 있습니다..."):
-                try:
-                    gpt_questions = generate_gpt_questions(extracted_text)
+                gpt_questions = generate_gpt_questions(extracted_text)
+                if gpt_questions:
                     st.write("## GPT가 생성한 질문")
                     st.write(gpt_questions)
-                except Exception as e:
-                    st.error(f"GPT 질문 생성 중 오류 발생: {e}")
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
 else:
     st.info("PDF 파일을 업로드해주세요.")
-
 
 
     
