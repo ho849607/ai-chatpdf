@@ -10,7 +10,7 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
-import nltk
+from os import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
