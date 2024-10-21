@@ -34,38 +34,11 @@ for package in ['punkt', 'stopwords']:
             nltk.data.find(f'corpora/{package}')
     except LookupError:
         nltk.download(package, download_dir=nltk_data_dir)
-        st.write(f"✅ NLTK 패키지 다운로드 완료: {package}")
-
-# 디버그: NLTK 데이터 경로 출력
-st.sidebar.header("디버그 정보")
-st.sidebar.subheader("NLTK 데이터 경로:")
-for path in nltk.data.path:
-    st.sidebar.write(path)
-
-# 디버그: nltk_data_dir 내용 출력
-st.sidebar.subheader("nltk_data_dir의 내용:")
-try:
-    nltk_dir_contents = os.listdir(nltk_data_dir)
-    st.sidebar.write(nltk_dir_contents)
-except Exception as e:
-    st.sidebar.error(f"nltk_data_dir 접근 오류: {e}")
-
-# 디버그: tokenizers 디렉토리 내용 출력
-st.sidebar.subheader("tokenizers 디렉토리의 내용:")
-tokenizers_dir = os.path.join(nltk_data_dir, 'tokenizers')
-if os.path.exists(tokenizers_dir):
-    try:
-        tokenizers_contents = os.listdir(tokenizers_dir)
-        st.sidebar.write(tokenizers_contents)
-    except Exception as e:
-        st.sidebar.error(f"tokenizers 디렉토리 접근 오류: {e}")
-else:
-    st.sidebar.write("tokenizers 디렉토리가 존재하지 않습니다.")
 
 # ----------------------- NLTK 설정 종료 -----------------------
 
 # 환경 변수 로드
-dotenv_path = Path(__file__).parent / '.env'
+dotenv_path = Path('.env')  # Streamlit에서는 __file__을 사용할 수 없으므로 현재 디렉토리의 .env 파일을 참조
 load_dotenv(dotenv_path=dotenv_path)
 
 # API 키 설정
@@ -102,7 +75,12 @@ def pdf_to_text(upload_file):
 
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text):
-    tokens = word_tokenize(summary_text, language='english')
+    try:
+        tokens = word_tokenize(summary_text, language='english')  # 'punkt_tab'이 아닌 'punkt'을 사용
+    except LookupError as e:
+        st.error(f"NLTK 토크나이저 로드 중 오류 발생: {e}")
+        return {}
+
     stop_words = set(stopwords.words('english'))
     filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
     freq_dist = nltk.FreqDist(filtered_tokens)
@@ -245,6 +223,9 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+else:
+    st.info("PDF 파일을 업로드해주세요.")
+
 else:
     st.info("PDF 파일을 업로드해주세요.")
 
