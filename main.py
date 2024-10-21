@@ -17,6 +17,8 @@ from nltk.corpus import stopwords
 # NLTK 데이터 다운로드
 nltk.download('punkt')
 nltk.download('stopwords')
+nltk.data.path.append('path_to_your_nltk_data')
+
 
 # 나머지 코드...
 
@@ -236,5 +238,6 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+
 
 
