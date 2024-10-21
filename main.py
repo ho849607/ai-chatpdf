@@ -18,7 +18,7 @@ from nltk.corpus import stopwords
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.data.path.append('path_to_your_nltk_data')
-nltk 
+
 
 # 나머지 코드...
 
