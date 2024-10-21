@@ -13,11 +13,8 @@ import nltk
 nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
 nltk.data.path.append(nltk_data_dir)
 
-# 'punkt'가 없으면 다운로드
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_dir)
+# 강제로 'punkt' 다운로드
+nltk.download('punkt', download_dir=nltk_data_dir)
 
 # ----------------------- NLTK 설정 종료 -----------------------
 
@@ -123,6 +120,5 @@ if uploaded_file is not None:
 
 else:
     st.info("PDF 파일을 업로드해주세요.")
-
 
     
