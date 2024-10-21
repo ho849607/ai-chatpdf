@@ -6,26 +6,18 @@ import pdfplumber
 import openai
 from pathlib import Path
 import nltk
-from nltk.tokenize import word_tokenize, sent_tokenize
-from nltk.corpus import stopwords
 
 # ----------------------- NLTK 설정 시작 -----------------------
 
-# NLTK 데이터 디렉토리 정의 및 경로 확인
+# NLTK 데이터 디렉토리 정의 및 경로 추가
 nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
 nltk.data.path.append(nltk_data_dir)
 
-# 현재 NLTK 데이터 경로 출력
-st.write("NLTK 데이터 경로 확인:")
-for path in nltk.data.path:
-    st.write(path)
-
-# 수동으로 punkt 다운로드한 경우 해당 경로 확인
+# 'punkt'가 없으면 다운로드
 try:
     nltk.data.find('tokenizers/punkt')
-    st.write("punkt 데이터가 존재합니다.")
 except LookupError:
-    st.error("punkt 데이터를 찾을 수 없습니다. 다운로드를 시도하세요.")
+    nltk.download('punkt', download_dir=nltk_data_dir)
 
 # ----------------------- NLTK 설정 종료 -----------------------
 
@@ -52,7 +44,6 @@ st.write("---")
 
 # 파일 업로드
 uploaded_file = st.file_uploader("PDF 파일을 올려주세요", type=['pdf'])
-st.write("---")
 
 # PDF를 텍스트로 변환하는 함수
 def pdf_to_text(upload_file):
@@ -69,7 +60,7 @@ def pdf_to_text(upload_file):
 def summarize_pdf(text):
     try:
         # 문장 단위로 텍스트를 분할
-        sentences = sent_tokenize(text, language='english')
+        sentences = nltk.sent_tokenize(text)
 
         # 청크 생성 (1000자당 200자 오버랩)
         chunk_size = 1000
