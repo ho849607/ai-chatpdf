@@ -14,39 +14,6 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
-# NLTK 데이터 다운로드
-nltk.download('punkt')
-nltk.download('stopwords')
-
-
-
-# 나머지 코드...
-
-# 단어 추출 및 검색 함수
-def extract_and_search_terms(summary_text):
-    tokens = word_tokenize(summary_text, language='english')
-    stop_words = set(stopwords.words('english'))
-    filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
-    freq_dist = nltk.FreqDist(filtered_tokens)
-    important_terms = [word for word, freq in freq_dist.most_common(5)]
-    term_info = {}
-    for term in important_terms:
-        try:
-            llm = ChatOpenAI(
-                model_name="gpt-3.5-turbo",
-                temperature=0,
-                max_tokens=150,
-                openai_api_key=openai_api_key
-            )
-            prompt = f"Provide the definition and related information for the term '{term}'."
-            messages = [HumanMessage(content=prompt)]
-            response = llm(messages)
-            info = response.content
-            term_info[term] = info
-        except Exception as e:
-            term_info[term] = f"Error retrieving information: {e}"
-    return term_info
-
 # NLTK 데이터 다운로드 (최초 실행 시)
 nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
 if not os.path.exists(nltk_data_dir):
@@ -102,19 +69,14 @@ def pdf_to_text(upload_file):
 
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text):
-    # 언어를 명시적으로 지정하여 토큰화
     tokens = word_tokenize(summary_text, language='english')
     stop_words = set(stopwords.words('english'))
     filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
-    # 빈도수 계산
     freq_dist = nltk.FreqDist(filtered_tokens)
-    # 상위 5개 단어 선택
     important_terms = [word for word, freq in freq_dist.most_common(5)]
-    # 각 단어에 대한 정보 검색
     term_info = {}
     for term in important_terms:
         try:
-            # OpenAI를 사용하여 해당 단어의 정의 및 관련 정보 가져오기
             llm = ChatOpenAI(
                 model_name="gpt-3.5-turbo",
                 temperature=0,
@@ -153,7 +115,6 @@ def summarize_pdf(text):
 
 # 예상 시험 문제 생성 함수
 def generate_exam_questions(text):
-    # 시험 문제 생성 프롬프트
     llm = ChatOpenAI(
         model_name="gpt-3.5-turbo",
         temperature=0.5,
@@ -168,7 +129,6 @@ def generate_exam_questions(text):
 
 # 퀴즈 생성 함수
 def generate_quiz(text):
-    # 퀴즈 생성 프롬프트
     llm = ChatOpenAI(
         model_name="gpt-3.5-turbo",
         temperature=0.5,
@@ -181,9 +141,8 @@ def generate_quiz(text):
     quiz = response.content
     return quiz
 
-# GPT가 질문 생성 함수
+# GPT 질문 생성 함수
 def generate_gpt_questions(text):
-    # 질문 생성
     llm = ChatOpenAI(
         model_name="gpt-3.5-turbo",
         temperature=0.7,
