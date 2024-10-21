@@ -1,6 +1,3 @@
-import sys
-sys.path.append('C:\Users\ho849\OneDrive\바탕 화면\CWEB\langchain\chatpdf')
-import dateutil
 import os
 import streamlit as st
 from io import BytesIO
