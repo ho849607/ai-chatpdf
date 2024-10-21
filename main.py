@@ -10,6 +10,7 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
+import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
@@ -17,7 +18,7 @@ from nltk.corpus import stopwords
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.data.path.append('path_to_your_nltk_data')
-
+nltk 
 
 # 나머지 코드...
 
