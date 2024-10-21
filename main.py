@@ -14,22 +14,55 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
-# NLTK 데이터 다운로드 (최초 실행 시)
-nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
-if not os.path.exists(nltk_data_dir):
-    os.mkdir(nltk_data_dir)
+# ----------------------- NLTK 설정 시작 -----------------------
 
+# NLTK 데이터 디렉토리 정의
+nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
+
+# 디렉토리가 없으면 생성
+os.makedirs(nltk_data_dir, exist_ok=True)
+
+# NLTK의 데이터 경로에 추가
 nltk.data.path.append(nltk_data_dir)
 
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_dir)
+# 'punkt'와 'stopwords'가 없으면 다운로드
+for package in ['punkt', 'stopwords']:
+    try:
+        if package == 'punkt':
+            nltk.data.find('tokenizers/punkt')
+        else:
+            nltk.data.find(f'corpora/{package}')
+    except LookupError:
+        nltk.download(package, download_dir=nltk_data_dir)
+        st.write(f"✅ NLTK 패키지 다운로드 완료: {package}")
 
+# 디버그: NLTK 데이터 경로 출력
+st.sidebar.header("디버그 정보")
+st.sidebar.subheader("NLTK 데이터 경로:")
+for path in nltk.data.path:
+    st.sidebar.write(path)
+
+# 디버그: nltk_data_dir 내용 출력
+st.sidebar.subheader("nltk_data_dir의 내용:")
 try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords', download_dir=nltk_data_dir)
+    nltk_dir_contents = os.listdir(nltk_data_dir)
+    st.sidebar.write(nltk_dir_contents)
+except Exception as e:
+    st.sidebar.error(f"nltk_data_dir 접근 오류: {e}")
+
+# 디버그: tokenizers 디렉토리 내용 출력
+st.sidebar.subheader("tokenizers 디렉토리의 내용:")
+tokenizers_dir = os.path.join(nltk_data_dir, 'tokenizers')
+if os.path.exists(tokenizers_dir):
+    try:
+        tokenizers_contents = os.listdir(tokenizers_dir)
+        st.sidebar.write(tokenizers_contents)
+    except Exception as e:
+        st.sidebar.error(f"tokenizers 디렉토리 접근 오류: {e}")
+else:
+    st.sidebar.write("tokenizers 디렉토리가 존재하지 않습니다.")
+
+# ----------------------- NLTK 설정 종료 -----------------------
 
 # 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
@@ -89,7 +122,7 @@ def extract_and_search_terms(summary_text):
             info = response.content
             term_info[term] = info
         except Exception as e:
-            term_info[term] = f"Error retrieving information: {e}"
+            term_info[term] = f"정보를 가져오는 중 오류 발생: {e}"
     return term_info
 
 # 요약 생성 함수
@@ -169,35 +202,51 @@ if uploaded_file is not None:
 
             # 자동으로 요약, 시험 문제, 퀴즈, GPT 질문 생성
             with st.spinner("요약을 생성하고 있습니다..."):
-                summary = summarize_pdf(extracted_text)
-                st.write("## 요약 결과")
-                st.write(summary)
+                try:
+                    summary = summarize_pdf(extracted_text)
+                    st.write("## 요약 결과")
+                    st.write(summary)
+                except Exception as e:
+                    st.error(f"요약 생성 중 오류 발생: {e}")
 
             with st.spinner("요약 내 단어를 검색하고 있습니다..."):
-                term_info = extract_and_search_terms(summary)
-                st.write("## 요약 내 중요한 단어 정보")
-                for term, info in term_info.items():
-                    st.write(f"### {term}")
-                    st.write(info)
+                try:
+                    term_info = extract_and_search_terms(summary)
+                    st.write("## 요약 내 중요한 단어 정보")
+                    for term, info in term_info.items():
+                        st.write(f"### {term}")
+                        st.write(info)
+                except Exception as e:
+                    st.error(f"단어 정보 검색 중 오류 발생: {e}")
 
             with st.spinner("시험 문제를 생성하고 있습니다..."):
-                questions = generate_exam_questions(extracted_text)
-                st.write("## 예상 시험 문제")
-                st.write(questions)
+                try:
+                    questions = generate_exam_questions(extracted_text)
+                    st.write("## 예상 시험 문제")
+                    st.write(questions)
+                except Exception as e:
+                    st.error(f"시험 문제 생성 중 오류 발생: {e}")
 
             with st.spinner("퀴즈를 생성하고 있습니다..."):
-                quiz = generate_quiz(extracted_text)
-                st.write("## 생성된 퀴즈")
-                st.write(quiz)
+                try:
+                    quiz = generate_quiz(extracted_text)
+                    st.write("## 생성된 퀴즈")
+                    st.write(quiz)
+                except Exception as e:
+                    st.error(f"퀴즈 생성 중 오류 발생: {e}")
 
             with st.spinner("GPT가 질문을 생성하고 있습니다..."):
-                gpt_questions = generate_gpt_questions(extracted_text)
-                st.write("## GPT가 생성한 질문")
-                st.write(gpt_questions)
+                try:
+                    gpt_questions = generate_gpt_questions(extracted_text)
+                    st.write("## GPT가 생성한 질문")
+                    st.write(gpt_questions)
+                except Exception as e:
+                    st.error(f"GPT 질문 생성 중 오류 발생: {e}")
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
 else:
     st.info("PDF 파일을 업로드해주세요.")
+
 
     
