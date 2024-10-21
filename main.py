@@ -226,8 +226,6 @@ if uploaded_file is not None:
 else:
     st.info("PDF 파일을 업로드해주세요.")
 
-else:
-    st.info("PDF 파일을 업로드해주세요.")
 
 
     
