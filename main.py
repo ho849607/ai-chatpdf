@@ -11,25 +11,21 @@ from nltk.corpus import stopwords
 
 # ----------------------- NLTK 설정 시작 -----------------------
 
-# NLTK 데이터 디렉토리 정의
+# NLTK 데이터 디렉토리 정의 및 경로 확인
 nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
-
-# 디렉토리가 없으면 생성
-os.makedirs(nltk_data_dir, exist_ok=True)
-
-# NLTK의 데이터 경로에 추가
 nltk.data.path.append(nltk_data_dir)
 
-# 'punkt'와 'stopwords'가 없으면 다운로드
+# 현재 NLTK 데이터 경로 출력
+st.write("NLTK 데이터 경로 확인:")
+for path in nltk.data.path:
+    st.write(path)
+
+# 수동으로 punkt 다운로드한 경우 해당 경로 확인
 try:
     nltk.data.find('tokenizers/punkt')
+    st.write("punkt 데이터가 존재합니다.")
 except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_dir)
-
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords', download_dir=nltk_data_dir)
+    st.error("punkt 데이터를 찾을 수 없습니다. 다운로드를 시도하세요.")
 
 # ----------------------- NLTK 설정 종료 -----------------------
 
@@ -68,21 +64,6 @@ def pdf_to_text(upload_file):
     except Exception as e:
         st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
-
-# 단어 추출 및 검색 함수
-def extract_and_search_terms(summary_text):
-    try:
-        tokens = word_tokenize(summary_text, language='english')  # 'punkt'을 명시적으로 사용
-    except LookupError as e:
-        st.error(f"NLTK 토크나이저 로드 중 오류 발생: {e}")
-        return {}
-
-    stop_words = set(stopwords.words('english'))
-    filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
-    freq_dist = nltk.FreqDist(filtered_tokens)
-    important_terms = [word for word, freq in freq_dist.most_common(5)]
-    term_info = {}
-    return important_terms  # 단순화된 단어 추출 결과 반환
 
 # 요약 생성 함수
 def summarize_pdf(text):
@@ -151,5 +132,6 @@ if uploaded_file is not None:
 
 else:
     st.info("PDF 파일을 업로드해주세요.")
+
 
     
