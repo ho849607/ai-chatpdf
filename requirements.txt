@@ -9,6 +9,6 @@ pillow
 langchain-community
 protobuf==3.20.3
 docarray
-nltk
+import nltk
 nltk.download('punkt')
 
