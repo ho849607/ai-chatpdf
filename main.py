@@ -14,24 +14,41 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
+# KoNLPy를 사용한 한국어 처리
+from konlpy.tag import Okt
+
 # NLTK 데이터 다운로드
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.data.path.append('path_to_your_nltk_data')
 
+# 한국어 형태소 분석기 초기화 (Okt)
+okt = Okt()
 
 # 나머지 코드...
 
-# 단어 추출 및 검색 함수
-def extract_and_search_terms(summary_text):
-    tokens = word_tokenize(summary_text, language='english')
-    stop_words = set(stopwords.words('english'))
-    filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
+# 단어 추출 및 검색 함수 (영어 & 한국어 지원)
+def extract_and_search_terms(summary_text, language='english'):
+    if language == 'english':
+        # 영어 텍스트 처리
+        tokens = word_tokenize(summary_text, language='english')
+        stop_words = set(stopwords.words('english'))
+        filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
+    else:
+        # 한국어 텍스트 처리
+        tokens = okt.nouns(summary_text)  # 명사 추출
+        filtered_tokens = [w for w in tokens if len(w) > 1]  # 한 글자 명사 제거 (필요에 따라 변경 가능)
+
+    # 빈도수 계산
     freq_dist = nltk.FreqDist(filtered_tokens)
+    # 상위 5개 단어 선택
     important_terms = [word for word, freq in freq_dist.most_common(5)]
+    
+    # 각 단어에 대한 정보 검색
     term_info = {}
     for term in important_terms:
         try:
+            # OpenAI를 사용하여 해당 단어의 정의 및 관련 정보 가져오기
             llm = ChatOpenAI(
                 model_name="gpt-3.5-turbo",
                 temperature=0,
@@ -99,36 +116,6 @@ def pdf_to_text(upload_file):
     except Exception as e:
         st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
-
-# 단어 추출 및 검색 함수
-def extract_and_search_terms(summary_text):
-    # 언어를 명시적으로 지정하여 토큰화
-    tokens = word_tokenize(summary_text, language='english')
-    stop_words = set(stopwords.words('english'))
-    filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
-    # 빈도수 계산
-    freq_dist = nltk.FreqDist(filtered_tokens)
-    # 상위 5개 단어 선택
-    important_terms = [word for word, freq in freq_dist.most_common(5)]
-    # 각 단어에 대한 정보 검색
-    term_info = {}
-    for term in important_terms:
-        try:
-            # OpenAI를 사용하여 해당 단어의 정의 및 관련 정보 가져오기
-            llm = ChatOpenAI(
-                model_name="gpt-3.5-turbo",
-                temperature=0,
-                max_tokens=150,
-                openai_api_key=openai_api_key
-            )
-            prompt = f"Provide the definition and related information for the term '{term}'."
-            messages = [HumanMessage(content=prompt)]
-            response = llm(messages)
-            info = response.content
-            term_info[term] = info
-        except Exception as e:
-            term_info[term] = f"Error retrieving information: {e}"
-    return term_info
 
 # 요약 생성 함수
 def summarize_pdf(text):
@@ -214,8 +201,14 @@ if uploaded_file is not None:
                 st.write("## 요약 결과")
                 st.write(summary)
 
+            # 요약 내 단어 검색 (언어 설정에 따라 영어 또는 한국어 처리)
             with st.spinner("요약 내 단어를 검색하고 있습니다..."):
-                term_info = extract_and_search_terms(summary)
+                # 한국어 또는 영어 텍스트에 따라 처리
+                if '안녕하세요' in extracted_text:  # 간단한 예로 한국어 여부 체크
+                    term_info = extract_and_search_terms(summary, language='korean')
+                else:
+                    term_info = extract_and_search_terms(summary, language='english')
+                
                 st.write("## 요약 내 중요한 단어 정보")
                 for term, info in term_info.items():
                     st.write(f"### {term}")
@@ -238,6 +231,5 @@ if uploaded_file is not None:
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
 
     
