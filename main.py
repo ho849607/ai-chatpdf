@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import pdfplumber
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import Document, HumanMessage
-from langchain.chains.summarize import load_summarize_chain
 import openai
 from pathlib import Path
 import nltk
@@ -114,24 +113,35 @@ def summarize_pdf(text):
         current_chunk = ""
         for sentence in sentences:
             if len(current_chunk) + len(sentence) + 1 > chunk_size:
+                # 오버랩을 위해 마지막 200자를 유지
+                overlap = current_chunk[-chunk_overlap:]
                 chunks.append(current_chunk.strip())
-                current_chunk = current_chunk[-chunk_overlap:]  # 오버랩 유지
-            current_chunk += " " + sentence
+                current_chunk = overlap + " " + sentence
+            else:
+                current_chunk += " " + sentence
         if current_chunk:
             chunks.append(current_chunk.strip())
         
-        docs = [Document(page_content=chunk) for chunk in chunks]
-
-        # 요약 생성
+        # 각 청크를 요약
+        summaries = []
         llm = ChatOpenAI(
             model_name="gpt-3.5-turbo",
             temperature=0,
             max_tokens=1500,
             openai_api_key=openai_api_key
         )
-        summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
-        summary = summary_chain({"input_documents": docs}, return_only_outputs=True)
-        return summary['output_text']
+        for chunk in chunks:
+            prompt = f"Summarize the following text:\n\n{chunk}"
+            messages = [HumanMessage(content=prompt)]
+            response = llm(messages)
+            summaries.append(response.content)
+        
+        # 요약된 청크들을 다시 한번 요약
+        combined_summary = "\n".join(summaries)
+        final_prompt = f"Summarize the following summaries into a coherent overall summary:\n\n{combined_summary}"
+        final_messages = [HumanMessage(content=final_prompt)]
+        final_response = llm(final_messages)
+        return final_response.content
     except Exception as e:
         st.error(f"요약 생성 중 오류 발생: {e}")
         return ""
