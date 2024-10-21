@@ -198,8 +198,4 @@ if uploaded_file is not None:
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
 
-    else:
-        st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
-
-
+    
