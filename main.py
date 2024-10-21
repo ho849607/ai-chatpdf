@@ -15,9 +15,9 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
 # NLTK 데이터 다운로드
-nltk.download('C:\Users\ho849\AppData\Roaming\Python\Python312\Scripts')
+nltk.download('punkt')
 nltk.download('stopwords')
-nltk.data.path.append('path_to_your_nltk_data')
+
 
 
 # 나머지 코드...
