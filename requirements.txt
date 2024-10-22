@@ -13,4 +13,3 @@ nltk
 konlpy
 JPype1
 langdetect
-JVM
