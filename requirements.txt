@@ -12,3 +12,4 @@ docarray
 nltk
 konlpy
 JPype1
+langdetec
