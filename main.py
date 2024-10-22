@@ -14,15 +14,11 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from langdetect import detect  # 언어 감지 라이브러리
-from konlpy.tag import Okt
 
 # NLTK 데이터 다운로드
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.data.path.append('path_to_your_nltk_data')
-
-# 한국어 형태소 분석기 초기화 (Okt)
-okt = Okt()
 
 # NLTK 데이터 다운로드 (최초 실행 시)
 nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
@@ -86,15 +82,11 @@ def summarize_pdf(text, language):
     summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
     return summary_chain({"input_documents": docs}, return_only_outputs=True)['output_text']
 
-# 단어 추출 및 검색 함수 (영어 & 한국어 지원)
+# 단어 추출 및 검색 함수 (영어 & 한국어 지원 - GPT 사용)
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
-    if language == 'english':
-        tokens = word_tokenize(summary_text, language='english')
-        stop_words = set(stopwords.words('english'))
-        filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
-    else:
-        tokens = okt.nouns(summary_text)  # 명사 추출
-        filtered_tokens = [w for w in tokens if len(w) > 1]  # 한 글자 명사 제거 (필요에 따라 변경 가능)
+    tokens = word_tokenize(summary_text, language='english') if language == 'english' else summary_text.split()
+    stop_words = set(stopwords.words('english')) if language == 'english' else []
+    filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
 
     freq_dist = nltk.FreqDist(filtered_tokens)
     important_terms = [word for word, freq in freq_dist.most_common(5)]
@@ -102,7 +94,6 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     term_info = {}
     for term in important_terms:
         try:
-            term_sentence = next((sentence for sentence in extracted_text.split(".") if term in sentence), None)
             llm = ChatOpenAI(
                 model_name="gpt-3.5-turbo",
                 temperature=0,
@@ -110,12 +101,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
                 openai_api_key=openai_api_key
             )
 
-            if term_sentence:
-                prompt = (f"Based on the following sentence: '{term_sentence}', "
-                          f"provide a detailed definition and context for the term '{term}'.")
-            else:
-                prompt = f"Provide a definition and related information for the term '{term}'."
-
+            prompt = f"Provide a detailed definition and context for the term '{term}' in {language}."
             messages = [HumanMessage(content=prompt)]
             response = llm(messages)
             info = response.content
@@ -242,4 +228,3 @@ if st.session_state.processed:
             gpt_response = ask_gpt_question(user_question, st.session_state.lang)
             st.write(f"### {'GPT의 답변' if st.session_state.lang == 'korean' else 'GPT\'s Response'}")
             st.write(gpt_response)
-
