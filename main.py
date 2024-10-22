@@ -30,6 +30,16 @@ if not os.path.exists(nltk_data_dir):
     os.mkdir(nltk_data_dir)
 nltk.data.path.append(nltk_data_dir)
 
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', download_dir=nltk_data_dir)
+
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords', download_dir=nltk_data_dir)
+
 # .env 파일에서 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=dotenv_path)
@@ -233,7 +243,3 @@ if st.session_state.processed:
             st.write(f"### {'GPT의 답변' if st.session_state.lang == 'korean' else 'GPT\'s Response'}")
             st.write(gpt_response)
 
-    else:
-        st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
-
-    
