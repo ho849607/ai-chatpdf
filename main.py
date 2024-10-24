@@ -5,9 +5,8 @@ from dotenv import load_dotenv
 import pdfplumber
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import Document
+from langchain.schema import Document, HumanMessage
 from langchain.chains.summarize import load_summarize_chain
-from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
 import nltk
@@ -95,6 +94,53 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
             term_info[term] = f"Error retrieving information: {e}"
     return term_info
 
+# 퀴즈 생성 함수
+def generate_quiz(text, language):
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+        temperature=0.5,
+        max_tokens=1500,
+        openai_api_key=openai_api_key
+    )
+    prompt = (
+        f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}"
+        if language == 'english' else
+        f"다음 내용을 기반으로 5개의 객관식 퀴즈 문제를 만들어 주세요. 각 질문은 4개의 선택지를 포함하고 정답을 표시해 주세요:\n\n{text}"
+    )
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    return response.content
+
+# 시험 문제 생성 함수
+def generate_exam_questions(text, language):
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+        temperature=0.5,
+        max_tokens=1500,
+        openai_api_key=openai_api_key
+    )
+    prompt = (
+        f"Based on the following content, create 5 important exam questions:\n\n{text}"
+        if language == 'english' else
+        f"다음 내용을 기반으로 중요한 시험 문제 5개를 만들어 주세요:\n\n{text}"
+    )
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    return response.content
+
+# 사용자 질문에 대한 GPT 응답 함수
+def ask_gpt_question(question, language):
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+        temperature=0.5,
+        max_tokens=1500,
+        openai_api_key=openai_api_key
+    )
+    prompt = question if language == 'english' else f"다음 질문에 답해 주세요: {question}"
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    return response.content
+
 # 파일 업로드 및 데이터 처리
 if "processed" not in st.session_state:
     st.session_state.processed = False
@@ -121,12 +167,25 @@ if uploaded_file is not None:
                 st.write(summary)
                 st.session_state.summary = summary
 
+            # 중요 단어 정보 추출
             with st.spinner("요약 내 단어를 검색하고 있습니다..."):
                 term_info = extract_and_search_terms(summary, extracted_text, language=lang)
                 st.write("## 요약 내 중요한 단어 정보")
                 for term, info in term_info.items():
                     st.write(f"### {term}")
                     st.write(info)
+
+            # 퀴즈 생성
+            with st.spinner("퀴즈를 생성하고 있습니다..."):
+                quiz = generate_quiz(extracted_text, lang)
+                st.write("## 생성된 퀴즈")
+                st.write(quiz)
+
+            # 시험 문제 생성
+            with st.spinner("시험 문제를 생성하고 있습니다..."):
+                exam_questions = generate_exam_questions(extracted_text, lang)
+                st.write("## 생성된 시험 문제")
+                st.write(exam_questions)
 
             st.session_state.processed = True
             st.session_state.lang = lang
