@@ -37,6 +37,9 @@ openai.api_key = openai_api_key
 st.title("PDF 학습 도우미")
 st.write("---")
 
+# 저작권 유의사항 경고 메시지 추가
+st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
+
 # PDF를 텍스트로 변환하는 함수
 def pdf_to_text(upload_file):
     try:
