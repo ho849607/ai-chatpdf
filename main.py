@@ -1,3 +1,4 @@
+# 필요한 라이브러리 임포트
 import os
 import streamlit as st
 from io import BytesIO
@@ -13,6 +14,11 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from langdetect import detect
+
+# 추가된 라이브러리
+from docx import Document as DocxDocument
+from pptx import Presentation
+import tempfile
 
 # 초기 설정
 nltk.download('punkt')
@@ -33,13 +39,13 @@ if not openai_api_key:
 openai.api_key = openai_api_key
 
 # 제목 설정
-st.title("PDF 학습 도우미")
+st.title("학습 도우미")
 st.write("---")
 
 # 저작권 유의사항 경고 메시지 추가
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-# PDF를 텍스트로 변환하는 함수
+# 텍스트 추출 함수들
 def pdf_to_text(upload_file):
     try:
         with pdfplumber.open(BytesIO(upload_file.read())) as pdf:
@@ -47,6 +53,38 @@ def pdf_to_text(upload_file):
         return "\n".join(pages)
     except Exception as e:
         st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
+        return ""
+
+def docx_to_text(upload_file):
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
+            temp_docx.write(upload_file.getbuffer())
+            temp_docx_path = temp_docx.name
+        doc = DocxDocument(temp_docx_path)
+        full_text = []
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+        os.remove(temp_docx_path)
+        return '\n'.join(full_text)
+    except Exception as e:
+        st.error(f"DOCX에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
+        return ""
+
+def pptx_to_text(upload_file):
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pptx") as temp_pptx:
+            temp_pptx.write(upload_file.getbuffer())
+            temp_pptx_path = temp_pptx.name
+        prs = Presentation(temp_pptx_path)
+        text_runs = []
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    text_runs.append(shape.text)
+        os.remove(temp_pptx_path)
+        return '\n'.join(text_runs)
+    except Exception as e:
+        st.error(f"PPTX에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
 
 # 언어 감지 함수
@@ -58,7 +96,7 @@ def detect_language(text):
         return "unknown"
 
 # 요약 생성 함수
-def summarize_pdf(text, language):
+def summarize_text(text, language):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     texts = text_splitter.split_text(text)
     docs = [Document(page_content=t) for t in texts]
@@ -85,13 +123,17 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
                 openai_api_key=openai_api_key
             )
 
-            prompt = f"Provide a detailed definition and context for the term '{term}' in {language}."
+            prompt = (
+                f"Provide a detailed definition and context for the term '{term}' in {language}."
+                if language == 'english' else
+                f"용어 '{term}'에 대한 자세한 정의와 맥락을 {language}로 제공해 주세요."
+            )
             messages = [HumanMessage(content=prompt)]
             response = llm(messages)
             info = response.content
             term_info[term] = info
         except Exception as e:
-            term_info[term] = f"Error retrieving information: {e}"
+            term_info[term] = f"정보를 가져오는 중 오류 발생: {e}"
     return term_info
 
 # 퀴즈 생성 함수
@@ -145,53 +187,59 @@ def ask_gpt_question(question, language):
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-uploaded_file = st.file_uploader("PDF 파일을 올려주세요", type=['pdf'])
+uploaded_file = st.file_uploader("파일을 업로드하세요 (PDF, DOCX, PPTX)", type=['pdf', 'docx', 'pptx'])
 
 if uploaded_file is not None:
-    if uploaded_file.type == "application/pdf":
+    file_type = uploaded_file.type
+    if file_type == "application/pdf":
         extracted_text = pdf_to_text(uploaded_file)
-
-        if not extracted_text.strip():
-            st.error("PDF에서 텍스트를 추출할 수 없습니다. 다른 PDF를 시도해보세요.")
-        else:
-            st.success("PDF에서 텍스트를 추출했습니다.")
-            language = detect_language(extracted_text)
-            lang = 'korean' if language == 'ko' else 'english'
-
-            st.write(f"### 감지된 언어: {'한국어' if lang == 'korean' else '영어'}")
-
-            # 요약 생성 및 저장
-            with st.spinner("요약을 생성하고 있습니다..."):
-                summary = summarize_pdf(extracted_text, lang)
-                st.write("## 요약 결과")
-                st.write(summary)
-                st.session_state.summary = summary
-
-            # 중요 단어 정보 추출
-            with st.spinner("요약 내 단어를 검색하고 있습니다..."):
-                term_info = extract_and_search_terms(summary, extracted_text, language=lang)
-                st.write("## 요약 내 중요한 단어 정보")
-                for term, info in term_info.items():
-                    st.write(f"### {term}")
-                    st.write(info)
-
-            # 퀴즈 생성
-            with st.spinner("퀴즈를 생성하고 있습니다..."):
-                quiz = generate_quiz(extracted_text, lang)
-                st.write("## 생성된 퀴즈")
-                st.write(quiz)
-
-            # 시험 문제 생성
-            with st.spinner("시험 문제를 생성하고 있습니다..."):
-                exam_questions = generate_exam_questions(extracted_text, lang)
-                st.write("## 생성된 시험 문제")
-                st.write(exam_questions)
-
-            st.session_state.processed = True
-            st.session_state.lang = lang
-            st.session_state.extracted_text = extracted_text
+    elif file_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
+        extracted_text = docx_to_text(uploaded_file)
+    elif file_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+        extracted_text = pptx_to_text(uploaded_file)
     else:
-        st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
+        st.error("지원하지 않는 파일 형식입니다. PDF, DOCX, PPTX 파일만 올려주세요.")
+        st.stop()
+
+    if not extracted_text.strip():
+        st.error("파일에서 텍스트를 추출할 수 없습니다. 다른 파일을 시도해보세요.")
+    else:
+        st.success("파일에서 텍스트를 추출했습니다.")
+        language = detect_language(extracted_text)
+        lang = 'korean' if language == 'ko' else 'english'
+
+        st.write(f"### 감지된 언어: {'한국어' if lang == 'korean' else '영어'}")
+
+        # 요약 생성 및 저장
+        with st.spinner("요약을 생성하고 있습니다..."):
+            summary = summarize_text(extracted_text, lang)
+            st.write("## 요약 결과")
+            st.write(summary)
+            st.session_state.summary = summary
+
+        # 중요 단어 정보 추출
+        with st.spinner("요약 내 단어를 검색하고 있습니다..."):
+            term_info = extract_and_search_terms(summary, extracted_text, language=lang)
+            st.write("## 요약 내 중요한 단어 정보")
+            for term, info in term_info.items():
+                st.write(f"### {term}")
+                st.write(info)
+
+        # 퀴즈 생성
+        with st.spinner("퀴즈를 생성하고 있습니다..."):
+            quiz = generate_quiz(extracted_text, lang)
+            st.write("## 생성된 퀴즈")
+            st.write(quiz)
+
+        # 시험 문제 생성
+        with st.spinner("시험 문제를 생성하고 있습니다..."):
+            exam_questions = generate_exam_questions(extracted_text, lang)
+            st.write("## 생성된 시험 문제")
+            st.write(exam_questions)
+
+        st.session_state.processed = True
+        st.session_state.lang = lang
+        st.session_state.extracted_text = extracted_text
 
 if st.session_state.processed:
     st.write("---")
