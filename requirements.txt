@@ -13,3 +13,4 @@ nltk
 JPype1
 langdetect
 python-pptx
+docks
