@@ -13,28 +13,11 @@ from pathlib import Path
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from langdetect import detect  # 언어 감지 라이브러리
+from langdetect import detect
 
-# NLTK 데이터 다운로드
+# 초기 설정
 nltk.download('punkt')
 nltk.download('stopwords')
-nltk.data.path.append('path_to_your_nltk_data')
-
-# NLTK 데이터 다운로드 (최초 실행 시)
-nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
-if not os.path.exists(nltk_data_dir):
-    os.mkdir(nltk_data_dir)
-nltk.data.path.append(nltk_data_dir)
-
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_dir)
-
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords', download_dir=nltk_data_dir)
 
 # .env 파일에서 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
@@ -48,7 +31,6 @@ if not openai_api_key:
         st.error("OpenAI API 키가 설정되지 않았습니다.")
         st.stop()
 
-# OpenAI API 키 설정
 openai.api_key = openai_api_key
 
 # 제목 설정
@@ -82,7 +64,7 @@ def summarize_pdf(text, language):
     summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
     return summary_chain({"input_documents": docs}, return_only_outputs=True)['output_text']
 
-# 단어 추출 및 검색 함수 (영어 & 한국어 지원 - GPT 사용)
+# 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
     tokens = word_tokenize(summary_text, language='english') if language == 'english' else summary_text.split()
     stop_words = set(stopwords.words('english')) if language == 'english' else []
@@ -110,66 +92,12 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
             term_info[term] = f"Error retrieving information: {e}"
     return term_info
 
-# 예상 시험 문제 생성 함수
-def generate_exam_questions(text, language):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.5,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = f"Based on the following content, create 5 important exam questions:\n\n{text}" if language == 'english' else f"다음 내용을 기반으로 중요한 시험 문제 5개를 만들어 주세요:\n\n{text}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    return response.content
-
-# 퀴즈 생성 함수
-def generate_quiz(text, language):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.5,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}" if language == 'english' else f"다음 내용을 기반으로 5개의 객관식 퀴즈 문제를 만들어 주세요. 각 질문은 4개의 선택지를 포함하고 정답을 표시해 주세요:\n\n{text}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    return response.content
-
-# GPT 질문 생성 함수
-def generate_gpt_questions(text, language):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.7,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = f"From the following text, create 5 questions that encourage deeper thinking about important concepts or topics:\n\n{text}" if language == 'english' else f"다음 텍스트에서 중요한 개념이나 주제에 대한 깊은 사고를 유도하는 5개의 질문을 만들어 주세요:\n\n{text}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    return response.content
-
-# 사용자 질문에 대한 GPT 응답 함수
-def ask_gpt_question(question, language):
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0.5,
-        max_tokens=1500,
-        openai_api_key=openai_api_key
-    )
-    prompt = question if language == 'english' else f"다음 질문에 답해 주세요: {question}"
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    return response.content
-
 # 파일 업로드 및 데이터 처리
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-# PDF 파일 업로드
 uploaded_file = st.file_uploader("PDF 파일을 올려주세요", type=['pdf'])
 
-# PDF 파일 처리
 if uploaded_file is not None:
     if uploaded_file.type == "application/pdf":
         extracted_text = pdf_to_text(uploaded_file)
@@ -197,29 +125,12 @@ if uploaded_file is not None:
                     st.write(f"### {term}")
                     st.write(info)
 
-            with st.spinner("시험 문제를 생성하고 있습니다..."):
-                questions = generate_exam_questions(extracted_text, lang)
-                st.write("## 예상 시험 문제")
-                st.write(questions)
-
-            with st.spinner("퀴즈를 생성하고 있습니다..."):
-                quiz = generate_quiz(extracted_text, lang)
-                st.write("## 생성된 퀴즈")
-                st.write(quiz)
-
-            with st.spinner("GPT가 질문을 생성하고 있습니다..."):
-                gpt_questions = generate_gpt_questions(extracted_text, lang)
-                st.write("## GPT가 생성한 질문")
-                st.write(gpt_questions)
-
-            # 처리 완료 상태 설정
             st.session_state.processed = True
             st.session_state.lang = lang
             st.session_state.extracted_text = extracted_text
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
 
-# 질문 입력 및 GPT 응답
 if st.session_state.processed:
     st.write("---")
     user_question = st.text_input(f"{'질문을 입력하세요' if st.session_state.lang == 'korean' else 'Enter your question'}:")
@@ -228,3 +139,4 @@ if st.session_state.processed:
             gpt_response = ask_gpt_question(user_question, st.session_state.lang)
             st.write(f"### {'GPT의 답변' if st.session_state.lang == 'korean' else 'GPT\'s Response'}")
             st.write(gpt_response)
+
