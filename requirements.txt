@@ -13,5 +13,3 @@ nltk
 JPype1
 langdetect
 python-pptx
-docx
-exceptions
