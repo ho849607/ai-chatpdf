@@ -1,3 +1,4 @@
+# 필요한 라이브러리 임포트
 import os
 import streamlit as st
 from io import BytesIO
@@ -25,7 +26,7 @@ nltk.download('stopwords')
 
 # .env 파일에서 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
-load_dotenv(dotenv_path=dotenv_path)
+load_dotenv(dotenv_path=str(dotenv_path))
 
 # API 키 설정
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -100,7 +101,7 @@ def summarize_text(text, language):
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         texts = text_splitter.split_text(text)
         docs = [Document(page_content=t) for t in texts]
-        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, max_tokens=1500, openai_api_key=openai_api_key)
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
         summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
         return summary_chain({"input_documents": docs}, return_only_outputs=True)['output_text']
     except Exception as e:
@@ -110,8 +111,12 @@ def summarize_text(text, language):
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
     try:
-        tokens = word_tokenize(summary_text, language='english') if language == 'english' else summary_text.split()
-        stop_words = set(stopwords.words('english')) if language == 'english' else []
+        if language == 'english':
+            tokens = word_tokenize(summary_text)
+            stop_words = set(stopwords.words('english'))
+        else:
+            tokens = summary_text.split()
+            stop_words = set()
         filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
 
         freq_dist = nltk.FreqDist(filtered_tokens)
@@ -122,22 +127,19 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
             try:
                 llm = ChatOpenAI(
                     model_name="gpt-3.5-turbo",
-                    temperature=0,
-                    max_tokens=150,
-                    openai_api_key=openai_api_key
+                    temperature=0
                 )
-
                 prompt = (
                     f"Provide a detailed definition and context for the term '{term}' in {language}."
                     if language == 'english' else
-                    f"용어 '{term}'에 대한 자세한 정의와 맥락을 {language}로 제공해 주세요."
+                    f"용어 '{term}'에 대한 자세한 정의와 맥락을 제공해 주세요."
                 )
                 messages = [HumanMessage(content=prompt)]
                 response = llm(messages)
                 info = response.content
                 term_info[term] = info
             except Exception as e:
-                term_info[term] = f"정보를 가져오는 중 오류 발생: {e}"
+                term_info[term] = f"정보를 가져오는 중 오류 발생: {e}")
         return term_info
     except Exception as e:
         st.error(f"단어 추출 중 오류가 발생했습니다: {e}")
@@ -148,9 +150,7 @@ def generate_quiz(text, language):
     try:
         llm = ChatOpenAI(
             model_name="gpt-3.5-turbo",
-            temperature=0.5,
-            max_tokens=1500,
-            openai_api_key=openai_api_key
+            temperature=0.5
         )
         prompt = (
             f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}"
@@ -169,9 +169,7 @@ def generate_exam_questions(text, language):
     try:
         llm = ChatOpenAI(
             model_name="gpt-3.5-turbo",
-            temperature=0.5,
-            max_tokens=1500,
-            openai_api_key=openai_api_key
+            temperature=0.5
         )
         prompt = (
             f"Based on the following content, create 5 important exam questions:\n\n{text}"
@@ -190,9 +188,7 @@ def ask_gpt_question(question, language):
     try:
         llm = ChatOpenAI(
             model_name="gpt-3.5-turbo",
-            temperature=0.5,
-            max_tokens=1500,
-            openai_api_key=openai_api_key
+            temperature=0.5
         )
         prompt = question if language == 'english' else f"다음 질문에 답해 주세요: {question}"
         messages = [HumanMessage(content=prompt)]
@@ -209,13 +205,14 @@ if "processed" not in st.session_state:
 uploaded_file = st.file_uploader("파일을 업로드하세요 (PDF, DOCX, PPTX)", type=['pdf', 'docx', 'pptx'])
 
 if uploaded_file is not None:
-    file_type = uploaded_file.type
+    filename = uploaded_file.name
+    ext = os.path.splitext(filename)[1].lower()
     try:
-        if file_type == "application/pdf":
+        if ext == '.pdf':
             extracted_text = pdf_to_text(uploaded_file)
-        elif file_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
+        elif ext == '.docx':
             extracted_text = docx_to_text(uploaded_file)
-        elif file_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+        elif ext == '.pptx':
             extracted_text = pptx_to_text(uploaded_file)
         else:
             st.error("지원하지 않는 파일 형식입니다. PDF, DOCX, PPTX 파일만 올려주세요.")
