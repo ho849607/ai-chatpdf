@@ -4,15 +4,16 @@ import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
 import pdfplumber
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import Document, HumanMessage
-from langchain.chains.summarize import load_summarize_chain
+from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
+
+# 커스텀 한국어 불용어 리스트 정의
+korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에', '의', '은', '는', '이', '가', '와', '과', '하다', '있다', '되다', '이다']
 
 # 초기 설정
 nltk.download('punkt')
@@ -53,7 +54,7 @@ def pdf_to_text(upload_file):
 def detect_language(text):
     try:
         llm = ChatOpenAI(
-            model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+            model_name="gpt-3.5-turbo",
             temperature=0
         )
         prompt = f"다음 텍스트의 언어를 ISO 639-1 코드로 감지해 주세요 (예: 'en'은 영어, 'ko'는 한국어):\n\n{text[:500]}"
@@ -80,7 +81,7 @@ def summarize_pdf(text, language):
 # 핵심 요약 단어 추출 함수
 def extract_key_summary_words(summary_text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+        model_name="gpt-3.5-turbo",
         temperature=0
     )
     if language == 'korean':
@@ -96,7 +97,7 @@ def extract_key_summary_words(summary_text, language):
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
     if language == 'korean':
         tokens = summary_text.split()
-        stop_words = set(stopwords.words('korean'))
+        stop_words = set(korean_stopwords)
     else:
         tokens = word_tokenize(summary_text)
         stop_words = set(stopwords.words('english'))
@@ -109,7 +110,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     for term in important_terms:
         try:
             llm = ChatOpenAI(
-                model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+                model_name="gpt-3.5-turbo",
                 temperature=0
             )
             if language == 'korean':
@@ -127,7 +128,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
 # 퀴즈 생성 함수
 def generate_quiz(text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+        model_name="gpt-3.5-turbo",
         temperature=0.5
     )
     if language == 'korean':
@@ -141,7 +142,7 @@ def generate_quiz(text, language):
 # 시험 문제 생성 함수
 def generate_exam_questions(text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+        model_name="gpt-3.5-turbo",
         temperature=0.5
     )
     if language == 'korean':
@@ -155,7 +156,7 @@ def generate_exam_questions(text, language):
 # GPT가 사용자에게 질문을 생성하는 함수
 def generate_questions_for_user(text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+        model_name="gpt-3.5-turbo",
         temperature=0.5
     )
     if language == 'korean':
@@ -170,7 +171,7 @@ def generate_questions_for_user(text, language):
 # 사용자 질문에 대한 GPT 응답 함수
 def ask_gpt_question(question, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+        model_name="gpt-3.5-turbo",
         temperature=0.5
     )
     if language == 'korean':
