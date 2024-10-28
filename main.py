@@ -12,12 +12,16 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
-# 커스텀 한국어 불용어 리스트 정의
-korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에', '의', '은', '는', '이', '가', '와', '과', '하다', '있다', '되다', '이다']
+# 한국어 형태소 분석기 임포트
+from konlpy.tag import Okt
 
 # 초기 설정
 nltk.download('punkt')
 nltk.download('stopwords')
+
+# 한국어 불용어 리스트 정의
+korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에', '의', '은', '는',
+                    '가', '와', '과', '하다', '있다', '되다', '이다', '으로', '에서', '까지', '부터', '까지', '만', '하다']
 
 # .env 파일에서 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
@@ -96,12 +100,14 @@ def extract_key_summary_words(summary_text, language):
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
     if language == 'korean':
-        tokens = summary_text.split()
-        stop_words = set(korean_stopwords)
+        okt = Okt()
+        tokens = okt.pos(summary_text, stem=True)
+        # 명사와 동사만 선택
+        filtered_tokens = [word for word, pos in tokens if pos in ['Noun', 'Verb'] and word not in korean_stopwords]
     else:
         tokens = word_tokenize(summary_text)
         stop_words = set(stopwords.words('english'))
-    filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
+        filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
 
     freq_dist = nltk.FreqDist(filtered_tokens)
     important_terms = [word for word, freq in freq_dist.most_common(5)]
@@ -290,3 +296,4 @@ if st.session_state.get("processed", False):
                     else:
                         st.write("### GPT's Feedback")
                     st.write(feedback)
+
