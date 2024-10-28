@@ -46,21 +46,25 @@ if 'lang' not in st.session_state:
 # 저작권 유의사항 경고 메시지 추가
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-# 사이드바에 채팅 인터페이스 추가
-st.sidebar.title("💬 GPT와의 채팅")
+# 사이드바에 채팅 기록 추가
+st.sidebar.title("💬 채팅 기록")
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 def chat_interface():
+    # 사이드바에 채팅 기록 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
-            st.markdown(f"**👤 사용자:** {chat['message']}")
+            st.sidebar.markdown(f"**👤 사용자:** {chat['message']}")
         else:
-            st.markdown(f"**🤖 GPT:** {chat['message']}")
+            st.sidebar.markdown(f"**🤖 GPT:** {chat['message']}")
 
+    # 메인 영역에 'Chat with ChatGPT' 제목 추가
     if st.session_state.lang == 'korean':
+        st.write("## ChatGPT와의 채팅")
         user_chat_input = st.text_input("메시지를 입력하세요:", key="user_chat_input")
     else:
+        st.write("## Chat with ChatGPT")
         user_chat_input = st.text_input("Enter your message:", key="user_chat_input")
 
     if user_chat_input:
@@ -227,7 +231,7 @@ if "processed" not in st.session_state:
 
 uploaded_file = st.file_uploader("PDF 파일을 올려주세요", type=['pdf'])
 
-# 여기에서 채팅 인터페이스를 PDF 업로더 바로 아래에 표시합니다.
+# 채팅 인터페이스를 PDF 업로더 바로 아래에 표시합니다.
 chat_interface()
 
 if uploaded_file is not None:
