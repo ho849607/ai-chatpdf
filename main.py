@@ -8,6 +8,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage
 import openai
 from pathlib import Path
+import hashlib  # 해시 함수를 사용하기 위한 라이브러리 추가
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -91,7 +92,7 @@ def add_chat_message(role, message):
 # PDF를 텍스트로 변환하는 함수
 def pdf_to_text(upload_file):
     try:
-        with pdfplumber.open(BytesIO(upload_file.read())) as pdf:
+        with pdfplumber.open(BytesIO(upload_file.getvalue())) as pdf:
             pages = []
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
@@ -244,9 +245,13 @@ chat_interface()
 
 if uploaded_file is not None:
     if uploaded_file.type == "application/pdf":
+        # 파일의 고유 해시 생성
+        file_bytes = uploaded_file.getvalue()
+        file_hash = hashlib.md5(file_bytes).hexdigest()
+
         # 파일이 변경되었는지 확인
-        if "uploaded_file_id" not in st.session_state or st.session_state.uploaded_file_id != uploaded_file.id:
-            st.session_state.uploaded_file_id = uploaded_file.id
+        if "uploaded_file_hash" not in st.session_state or st.session_state.uploaded_file_hash != file_hash:
+            st.session_state.uploaded_file_hash = file_hash
 
             # 이전에 저장된 결과 초기화
             st.session_state.extracted_text = ""
