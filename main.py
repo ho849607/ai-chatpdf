@@ -12,16 +12,14 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
-# 한국어 형태소 분석기 임포트
-from konlpy.tag import Okt
-
 # 초기 설정
 nltk.download('punkt')
 nltk.download('stopwords')
 
 # 한국어 불용어 리스트 정의
-korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에', '의', '은', '는',
-                    '가', '와', '과', '하다', '있다', '되다', '이다', '으로', '에서', '까지', '부터', '까지', '만', '하다']
+korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에',
+                    '의', '은', '는', '가', '와', '과', '하다', '있다', '되다', '이다',
+                    '으로', '에서', '까지', '부터', '까지', '만', '하다', '그리고', '하지만', '그러나']
 
 # .env 파일에서 환경 변수 로드
 dotenv_path = Path(__file__).parent / '.env'
@@ -99,36 +97,17 @@ def extract_key_summary_words(summary_text, language):
 
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+        temperature=0
+    )
     if language == 'korean':
-        okt = Okt()
-        tokens = okt.pos(summary_text, stem=True)
-        # 명사와 동사만 선택
-        filtered_tokens = [word for word, pos in tokens if pos in ['Noun', 'Verb'] and word not in korean_stopwords]
+        prompt = f"다음 요약에서 중요한 용어 5~10개를 추출하고, 각 용어에 대한 자세한 정의와 맥락을 제공해 주세요:\n\n{summary_text}"
     else:
-        tokens = word_tokenize(summary_text)
-        stop_words = set(stopwords.words('english'))
-        filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
-
-    freq_dist = nltk.FreqDist(filtered_tokens)
-    important_terms = [word for word, freq in freq_dist.most_common(5)]
-
-    term_info = {}
-    for term in important_terms:
-        try:
-            llm = ChatOpenAI(
-                model_name="gpt-3.5-turbo",
-                temperature=0
-            )
-            if language == 'korean':
-                prompt = f"용어 '{term}'에 대한 자세한 정의와 맥락을 제공해 주세요."
-            else:
-                prompt = f"Provide a detailed definition and context for the term '{term}' in English."
-            messages = [HumanMessage(content=prompt)]
-            response = llm(messages)
-            info = response.content
-            term_info[term] = info
-        except Exception as e:
-            term_info[term] = f"정보를 가져오는 중 오류 발생: {e}"
+        prompt = f"Extract 5 to 10 important terms from the following summary and provide a detailed definition and context for each term:\n\n{summary_text}"
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    term_info = response.content.strip()
     return term_info
 
 # 퀴즈 생성 함수
@@ -233,9 +212,7 @@ if uploaded_file is not None:
             with st.spinner("요약 내 단어를 검색하고 있습니다..."):
                 term_info = extract_and_search_terms(summary, extracted_text, language=lang)
                 st.write("## 요약 내 중요한 단어 정보")
-                for term, info in term_info.items():
-                    st.write(f"### {term}")
-                    st.write(info)
+                st.write(term_info)
 
             # 퀴즈 생성
             with st.spinner("퀴즈를 생성하고 있습니다..."):
