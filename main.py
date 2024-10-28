@@ -39,6 +39,10 @@ openai.api_key = openai_api_key
 st.title("📚 PDF 학습 도우미")
 st.write("---")
 
+# **여기에서 'lang'을 초기화합니다.**
+if 'lang' not in st.session_state:
+    st.session_state.lang = 'english'  # 기본 언어를 영어로 설정합니다.
+
 # 저작권 유의사항 경고 메시지 추가
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
@@ -240,7 +244,7 @@ if uploaded_file is not None:
                 language_name = '영어'
             else:
                 lang = 'english'  # 기본값을 영어로 설정
-                language_name = '알 수 없음 (영어로 진행합니다)'
+                language_name = '알 수 없음 (영어로 진행합니다)"
 
             st.write(f"### 감지된 언어: {language_name}")
             st.session_state.lang = lang
