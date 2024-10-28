@@ -22,7 +22,7 @@ korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더
                     '으로', '에서', '까지', '부터', '까지', '만', '하다', '그리고', '하지만', '그러나']
 
 # .env 파일에서 환경 변수 로드
-dotenv_path = Path(__file__).parent / '.env'
+dotenv_path = Path('.env')
 load_dotenv(dotenv_path=dotenv_path)
 
 # API 키 설정
@@ -167,6 +167,12 @@ def ask_gpt_question(question, language):
     response = llm(messages)
     return response.content
 
+# 채팅 메시지 추가 함수
+def add_chat_message(role, message):
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    st.session_state.chat_history.append({"role": role, "message": message})
+
 # 파일 업로드 및 데이터 처리
 if "processed" not in st.session_state:
     st.session_state.processed = False
@@ -239,18 +245,50 @@ if uploaded_file is not None:
 
 if st.session_state.get("processed", False):
     st.write("---")
+    # 키워드 검색 기능 추가
     if st.session_state.lang == 'korean':
-        user_question = st.text_input("질문을 입력하세요:")
+        st.write("## 키워드 검색")
+        search_query = st.text_input("검색할 키워드를 입력하세요:")
     else:
-        user_question = st.text_input("Enter your question:")
-    if user_question:
-        with st.spinner("GPT가 답변 중입니다..."):
-            gpt_response = ask_gpt_question(user_question, st.session_state.lang)
-            if st.session_state.lang == 'korean':
-                st.write("### GPT의 답변")
-            else:
-                st.write("### GPT's Response")
-            st.write(gpt_response)
+        st.write("## Keyword Search")
+        search_query = st.text_input("Enter a keyword to search:")
+    if search_query:
+        # 검색 기능 구현
+        search_results = []
+        for line in st.session_state.extracted_text.split('\n'):
+            if search_query.lower() in line.lower():
+                search_results.append(line.strip())
+        if search_results:
+            st.write("### 검색 결과:")
+            for result in search_results:
+                st.write(f"- {result}")
+        else:
+            st.write("검색 결과가 없습니다.")
+
+    st.write("---")
+    # 채팅 인터페이스 추가
+    st.write("## GPT와의 채팅")
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # 기존 채팅 메시지 표시
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.write(f"**사용자:** {chat['message']}")
+        else:
+            st.write(f"**GPT:** {chat['message']}")
+
+    if st.session_state.lang == 'korean':
+        user_chat_input = st.text_input("메시지를 입력하세요:", key="user_chat_input")
+    else:
+        user_chat_input = st.text_input("Enter your message:", key="user_chat_input")
+
+    if user_chat_input:
+        add_chat_message("user", user_chat_input)
+        with st.spinner("GPT가 응답 중입니다..."):
+            gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
+            add_chat_message("assistant", gpt_response)
+            st.write(f"**GPT:** {gpt_response}")
 
     # GPT가 사용자에게 질문하고 사용자 응답 받기
     st.write("---")
