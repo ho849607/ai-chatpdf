@@ -13,7 +13,6 @@ from pathlib import Path
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from langdetect import detect
 
 # 초기 설정
 nltk.download('punkt')
@@ -50,27 +49,57 @@ def pdf_to_text(upload_file):
         st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
 
-# 언어 감지 함수
+# 언어 감지 함수 (OpenAI API 활용)
 def detect_language(text):
     try:
-        return detect(text)
+        llm = ChatOpenAI(
+            model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+            temperature=0
+        )
+        prompt = f"다음 텍스트의 언어를 ISO 639-1 코드로 감지해 주세요 (예: 'en'은 영어, 'ko'는 한국어):\n\n{text[:500]}"
+        messages = [HumanMessage(content=prompt)]
+        response = llm(messages)
+        language_code = response.content.strip().lower()
+        language_code = language_code.split()[0]
+        return language_code
     except Exception as e:
         st.error(f"언어 감지 중 오류가 발생했습니다: {e}")
         return "unknown"
 
-# 요약 생성 함수
+# 요약 생성 함수 (서론, 본론, 결론 구조로)
 def summarize_pdf(text, language):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = text_splitter.split_text(text)
-    docs = [Document(page_content=t) for t in texts]
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-    summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
-    return summary_chain({"input_documents": docs}, return_only_outputs=True)['output_text']
+    if language == 'korean':
+        prompt = f"다음 텍스트를 읽고 서론, 본론, 결론으로 구성된 자세한 요약을 작성해 주세요:\n\n{text}"
+    else:
+        prompt = f"Read the following text and write a detailed summary structured with an introduction, main body, and conclusion:\n\n{text}"
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    return response.content.strip()
+
+# 핵심 요약 단어 추출 함수
+def extract_key_summary_words(summary_text, language):
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
+        temperature=0
+    )
+    if language == 'korean':
+        prompt = f"다음 요약에서 중요한 키워드 5~10개를 추출해 주세요:\n\n{summary_text}"
+    else:
+        prompt = f"Extract 5 to 10 important keywords from the following summary:\n\n{summary_text}"
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    keywords = response.content.strip()
+    return keywords
 
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
-    tokens = word_tokenize(summary_text) if language == 'english' else summary_text.split()
-    stop_words = set(stopwords.words('english')) if language == 'english' else set()
+    if language == 'korean':
+        tokens = summary_text.split()
+        stop_words = set(stopwords.words('korean'))
+    else:
+        tokens = word_tokenize(summary_text)
+        stop_words = set(stopwords.words('english'))
     filtered_tokens = [w for w in tokens if w.isalnum() and w.lower() not in stop_words]
 
     freq_dist = nltk.FreqDist(filtered_tokens)
@@ -80,15 +109,13 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     for term in important_terms:
         try:
             llm = ChatOpenAI(
-                model_name="gpt-3.5-turbo",
+                model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
                 temperature=0
             )
-
-            prompt = (
-                f"Provide a detailed definition and context for the term '{term}' in {language}."
-                if language == 'english' else
-                f"용어 '{term}'에 대한 자세한 정의와 맥락을 제공해 주세요."
-            )
+            if language == 'korean':
+                prompt = f"용어 '{term}'에 대한 자세한 정의와 맥락을 제공해 주세요."
+            else:
+                prompt = f"Provide a detailed definition and context for the term '{term}' in English."
             messages = [HumanMessage(content=prompt)]
             response = llm(messages)
             info = response.content
@@ -100,14 +127,13 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
 # 퀴즈 생성 함수
 def generate_quiz(text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
         temperature=0.5
     )
-    prompt = (
-        f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}"
-        if language == 'english' else
-        f"다음 내용을 기반으로 5개의 객관식 퀴즈 문제를 만들어 주세요. 각 질문은 4개의 선택지를 포함하고 정답을 표시해 주세요:\n\n{text}"
-    )
+    if language == 'korean':
+        prompt = f"다음 내용을 기반으로 5개의 객관식 퀴즈 문제를 만들어 주세요. 각 질문은 4개의 선택지를 포함하고 정답을 표시해 주세요:\n\n{text}"
+    else:
+        prompt = f"Based on the following content, create 5 multiple-choice quiz questions. Each question should have 4 options and indicate the correct answer:\n\n{text}"
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
     return response.content
@@ -115,14 +141,13 @@ def generate_quiz(text, language):
 # 시험 문제 생성 함수
 def generate_exam_questions(text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
         temperature=0.5
     )
-    prompt = (
-        f"Based on the following content, create 5 important exam questions:\n\n{text}"
-        if language == 'english' else
-        f"다음 내용을 기반으로 중요한 시험 문제 5개를 만들어 주세요:\n\n{text}"
-    )
+    if language == 'korean':
+        prompt = f"다음 내용을 기반으로 중요한 시험 문제 5개를 만들어 주세요:\n\n{text}"
+    else:
+        prompt = f"Based on the following content, create 5 important exam questions:\n\n{text}"
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
     return response.content
@@ -130,14 +155,13 @@ def generate_exam_questions(text, language):
 # GPT가 사용자에게 질문을 생성하는 함수
 def generate_questions_for_user(text, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
         temperature=0.5
     )
-    prompt = (
-        f"Based on the following content, generate 3 thoughtful questions to ask the user for a deeper understanding:\n\n{text}"
-        if language == 'english' else
-        f"다음 내용을 기반으로 사용자가 더 깊이 생각할 수 있도록 3개의 질문을 만들어 주세요:\n\n{text}"
-    )
+    if language == 'korean':
+        prompt = f"다음 내용을 기반으로 사용자가 더 깊이 생각할 수 있도록 3개의 질문을 만들어 주세요:\n\n{text}"
+    else:
+        prompt = f"Based on the following content, generate 3 thoughtful questions to ask the user for a deeper understanding:\n\n{text}"
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
     questions = response.content.strip().split('\n')
@@ -146,10 +170,13 @@ def generate_questions_for_user(text, language):
 # 사용자 질문에 대한 GPT 응답 함수
 def ask_gpt_question(question, language):
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-3.5-turbo",  # 필요에 따라 "gpt-4"로 변경 가능
         temperature=0.5
     )
-    prompt = question if language == 'english' else f"다음 질문에 답해 주세요: {question}"
+    if language == 'korean':
+        prompt = f"다음 질문에 답변해 주세요: {question}"
+    else:
+        prompt = question
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
     return response.content
@@ -168,10 +195,18 @@ if uploaded_file is not None:
             st.error("PDF에서 텍스트를 추출할 수 없습니다. 다른 PDF를 시도해보세요.")
         else:
             st.success("PDF에서 텍스트를 추출했습니다.")
-            language = detect_language(extracted_text)
-            lang = 'korean' if language == 'ko' else 'english'
+            language_code = detect_language(extracted_text)
+            if language_code == 'ko':
+                lang = 'korean'
+                language_name = '한국어'
+            elif language_code == 'en':
+                lang = 'english'
+                language_name = '영어'
+            else:
+                lang = 'english'  # 기본값을 영어로 설정
+                language_name = '알 수 없음 (영어로 진행합니다)'
 
-            st.write(f"### 감지된 언어: {'한국어' if lang == 'korean' else '영어'}")
+            st.write(f"### 감지된 언어: {language_name}")
 
             # 요약 생성 및 저장
             with st.spinner("요약을 생성하고 있습니다..."):
@@ -179,6 +214,13 @@ if uploaded_file is not None:
                 st.write("## 요약 결과")
                 st.write(summary)
                 st.session_state.summary = summary
+
+            # 핵심 요약 단어 추출
+            with st.spinner("핵심 요약 단어를 추출하고 있습니다..."):
+                key_summary_words = extract_key_summary_words(summary, lang)
+                st.write("## 핵심 요약 단어")
+                st.write(key_summary_words)
+                st.session_state.keywords = key_summary_words
 
             # 중요 단어 정보 추출
             with st.spinner("요약 내 단어를 검색하고 있습니다..."):
@@ -213,22 +255,37 @@ if uploaded_file is not None:
 
 if st.session_state.get("processed", False):
     st.write("---")
-    user_question = st.text_input(f"{'질문을 입력하세요' if st.session_state.lang == 'korean' else 'Enter your question'}:")
+    if st.session_state.lang == 'korean':
+        user_question = st.text_input("질문을 입력하세요:")
+    else:
+        user_question = st.text_input("Enter your question:")
     if user_question:
-        with st.spinner(f"{'GPT가 답변 중입니다...' if st.session_state.lang == 'korean' else 'GPT is responding...'}"):
+        with st.spinner("GPT가 답변 중입니다..."):
             gpt_response = ask_gpt_question(user_question, st.session_state.lang)
-            st.write(f"### {'GPT의 답변' if st.session_state.lang == 'korean' else 'GPT\'s Response'}")
+            if st.session_state.lang == 'korean':
+                st.write("### GPT의 답변")
+            else:
+                st.write("### GPT's Response")
             st.write(gpt_response)
 
     # GPT가 사용자에게 질문하고 사용자 응답 받기
     st.write("---")
-    st.write(f"## {'GPT가 당신에게 질문합니다' if st.session_state.lang == 'korean' else 'GPT has questions for you'}")
+    if st.session_state.lang == 'korean':
+        st.write("## GPT가 당신에게 질문합니다")
+    else:
+        st.write("## GPT has questions for you")
     if "gpt_questions" in st.session_state:
         for idx, question in enumerate(st.session_state.gpt_questions):
             user_answer = st.text_input(f"**{question}**", key=f"gpt_question_{idx}")
             if user_answer:
-                with st.spinner(f"{'GPT가 응답을 검토 중입니다...' if st.session_state.lang == 'korean' else 'GPT is reviewing your answer...'}"):
-                    feedback = ask_gpt_question(f"{question}\n\n사용자의 답변: {user_answer}\n\n이에 대해 피드백을 제공해 주세요.", st.session_state.lang)
-                    st.write(f"### {'GPT의 피드백' if st.session_state.lang == 'korean' else 'GPT\'s Feedback'}")
+                with st.spinner("GPT가 응답을 검토 중입니다..."):
+                    if st.session_state.lang == 'korean':
+                        feedback_prompt = f"{question}\n\n사용자의 답변: {user_answer}\n\n이에 대해 피드백을 제공해 주세요."
+                    else:
+                        feedback_prompt = f"{question}\n\nUser's answer: {user_answer}\n\nPlease provide feedback on this."
+                    feedback = ask_gpt_question(feedback_prompt, st.session_state.lang)
+                    if st.session_state.lang == 'korean':
+                        st.write("### GPT의 피드백")
+                    else:
+                        st.write("### GPT's Feedback")
                     st.write(feedback)
-
