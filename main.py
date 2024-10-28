@@ -36,18 +36,52 @@ if not openai_api_key:
 openai.api_key = openai_api_key
 
 # 제목 설정
-st.title("PDF 학습 도우미")
+st.title("📚 PDF 학습 도우미")
 st.write("---")
 
 # 저작권 유의사항 경고 메시지 추가
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
+# 사이드바에 채팅 인터페이스 추가
+st.sidebar.title("💬 GPT와의 채팅")
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+def chat_interface():
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.sidebar.markdown(f"**👤 사용자:** {chat['message']}")
+        else:
+            st.sidebar.markdown(f"**🤖 GPT:** {chat['message']}")
+
+    if st.session_state.lang == 'korean':
+        user_chat_input = st.sidebar.text_input("메시지를 입력하세요:", key="user_chat_input")
+    else:
+        user_chat_input = st.sidebar.text_input("Enter your message:", key="user_chat_input")
+
+    if user_chat_input:
+        add_chat_message("user", user_chat_input)
+        with st.spinner("GPT가 응답 중입니다..."):
+            gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
+            add_chat_message("assistant", gpt_response)
+            st.sidebar.markdown(f"**🤖 GPT:** {gpt_response}")
+
+# 채팅 메시지 추가 함수
+def add_chat_message(role, message):
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    st.session_state.chat_history.append({"role": role, "message": message})
+
 # PDF를 텍스트로 변환하는 함수
 def pdf_to_text(upload_file):
     try:
         with pdfplumber.open(BytesIO(upload_file.read())) as pdf:
-            pages = [page.extract_text() for page in pdf.pages]
-        return "\n".join(pages)
+            pages = []
+            for i, page in enumerate(pdf.pages):
+                text = page.extract_text()
+                if text:
+                    pages.append(f"<PAGE{i+1}>\n{text}")
+            return "\n".join(pages)
     except Exception as e:
         st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
@@ -80,20 +114,36 @@ def summarize_pdf(text, language):
     response = llm(messages)
     return response.content.strip()
 
-# 핵심 요약 단어 추출 함수
-def extract_key_summary_words(summary_text, language):
+# 핵심 요약 단어 추출 함수 (출처 포함)
+def extract_key_summary_words_with_sources(text, language):
     llm = ChatOpenAI(
         model_name="gpt-3.5-turbo",
         temperature=0
     )
     if language == 'korean':
-        prompt = f"다음 요약에서 중요한 키워드 5~10개를 추출해 주세요:\n\n{summary_text}"
+        prompt = f"""다음 텍스트에서 중요한 키워드 5~10개를 추출하고, 각 키워드의 출처(페이지 번호 또는 위치)를 표시해 주세요. 결과는 다음 형식으로 제공해 주세요:
+
+키워드1 (출처)
+키워드2 (출처)
+...
+        
+텍스트:
+{text}
+"""
     else:
-        prompt = f"Extract 5 to 10 important keywords from the following summary:\n\n{summary_text}"
+        prompt = f"""Extract 5 to 10 important keywords from the following text and indicate their sources (page number or location). Provide the results in the following format:
+
+Keyword1 (Source)
+Keyword2 (Source)
+...
+
+Text:
+{text}
+"""
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
-    keywords = response.content.strip()
-    return keywords
+    keywords_with_sources = response.content.strip()
+    return keywords_with_sources
 
 # 단어 추출 및 검색 함수
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
@@ -102,9 +152,9 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
         temperature=0
     )
     if language == 'korean':
-        prompt = f"다음 요약에서 중요한 용어 5~10개를 추출하고, 각 용어에 대한 자세한 정의와 맥락을 제공해 주세요:\n\n{summary_text}"
+        prompt = f"다음 요약에서 중요한 용어 5~10개를 추출하고, 각 용어에 대한 자세한 정의와 해당 용어가 텍스트 내에서 언급된 페이지 번호를 제공해 주세요:\n\n{summary_text}"
     else:
-        prompt = f"Extract 5 to 10 important terms from the following summary and provide a detailed definition and context for each term:\n\n{summary_text}"
+        prompt = f"Extract 5 to 10 important terms from the following summary and provide a detailed definition and the page numbers where each term is mentioned in the text:\n\n{summary_text}"
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
     term_info = response.content.strip()
@@ -167,12 +217,6 @@ def ask_gpt_question(question, language):
     response = llm(messages)
     return response.content
 
-# 채팅 메시지 추가 함수
-def add_chat_message(role, message):
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    st.session_state.chat_history.append({"role": role, "message": message})
-
 # 파일 업로드 및 데이터 처리
 if "processed" not in st.session_state:
     st.session_state.processed = False
@@ -199,6 +243,8 @@ if uploaded_file is not None:
                 language_name = '알 수 없음 (영어로 진행합니다)'
 
             st.write(f"### 감지된 언어: {language_name}")
+            st.session_state.lang = lang
+            st.session_state.extracted_text = extracted_text
 
             # 요약 생성 및 저장
             with st.spinner("요약을 생성하고 있습니다..."):
@@ -207,10 +253,10 @@ if uploaded_file is not None:
                 st.write(summary)
                 st.session_state.summary = summary
 
-            # 핵심 요약 단어 추출
+            # 핵심 요약 단어 추출 (출처 포함)
             with st.spinner("핵심 요약 단어를 추출하고 있습니다..."):
-                key_summary_words = extract_key_summary_words(summary, lang)
-                st.write("## 핵심 요약 단어")
+                key_summary_words = extract_key_summary_words_with_sources(extracted_text, lang)
+                st.write("## 핵심 요약 단어 및 출처")
                 st.write(key_summary_words)
                 st.session_state.keywords = key_summary_words
 
@@ -238,19 +284,17 @@ if uploaded_file is not None:
                 st.session_state.gpt_questions = gpt_questions
 
             st.session_state.processed = True
-            st.session_state.lang = lang
-            st.session_state.extracted_text = extracted_text
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
 
+# 키워드 검색 기능 추가
 if st.session_state.get("processed", False):
     st.write("---")
-    # 키워드 검색 기능 추가
     if st.session_state.lang == 'korean':
-        st.write("## 키워드 검색")
+        st.write("## 🔍 키워드 검색")
         search_query = st.text_input("검색할 키워드를 입력하세요:")
     else:
-        st.write("## Keyword Search")
+        st.write("## 🔍 Keyword Search")
         search_query = st.text_input("Enter a keyword to search:")
     if search_query:
         # 검색 기능 구현
@@ -259,38 +303,23 @@ if st.session_state.get("processed", False):
             if search_query.lower() in line.lower():
                 search_results.append(line.strip())
         if search_results:
-            st.write("### 검색 결과:")
+            if st.session_state.lang == 'korean':
+                st.write("### 검색 결과:")
+            else:
+                st.write("### Search Results:")
             for result in search_results:
                 st.write(f"- {result}")
         else:
-            st.write("검색 결과가 없습니다.")
+            if st.session_state.lang == 'korean':
+                st.write("검색 결과가 없습니다.")
+            else:
+                st.write("No results found.")
 
-    st.write("---")
-    # 채팅 인터페이스 추가
-    st.write("## GPT와의 채팅")
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+# 채팅 인터페이스 항상 표시
+chat_interface()
 
-    # 기존 채팅 메시지 표시
-    for chat in st.session_state.chat_history:
-        if chat["role"] == "user":
-            st.write(f"**사용자:** {chat['message']}")
-        else:
-            st.write(f"**GPT:** {chat['message']}")
-
-    if st.session_state.lang == 'korean':
-        user_chat_input = st.text_input("메시지를 입력하세요:", key="user_chat_input")
-    else:
-        user_chat_input = st.text_input("Enter your message:", key="user_chat_input")
-
-    if user_chat_input:
-        add_chat_message("user", user_chat_input)
-        with st.spinner("GPT가 응답 중입니다..."):
-            gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
-            add_chat_message("assistant", gpt_response)
-            st.write(f"**GPT:** {gpt_response}")
-
-    # GPT가 사용자에게 질문하고 사용자 응답 받기
+# GPT가 사용자에게 질문하고 사용자 응답 받기
+if st.session_state.get("processed", False):
     st.write("---")
     if st.session_state.lang == 'korean':
         st.write("## GPT가 당신에게 질문합니다")
@@ -311,4 +340,8 @@ if st.session_state.get("processed", False):
                     else:
                         st.write("### GPT's Feedback")
                     st.write(feedback)
+
+# 하단에 주의 문구 추가
+st.write("---")
+st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
 
