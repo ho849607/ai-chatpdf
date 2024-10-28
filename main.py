@@ -46,33 +46,41 @@ if 'lang' not in st.session_state:
 # 저작권 유의사항 경고 메시지 추가
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-# 사이드바에 채팅 기록 추가
-st.sidebar.title("💬 채팅 기록")
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
+# 채팅 인터페이스 함수 정의
 def chat_interface():
-    # 사이드바에 채팅 기록 표시
+    # 채팅 기록을 메인 영역에 표시
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # 채팅 기록을 대화 형식으로 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
-            st.sidebar.markdown(f"**👤 사용자:** {chat['message']}")
+            with st.chat_message("user"):
+                st.write(chat["message"])
         else:
-            st.sidebar.markdown(f"**🤖 GPT:** {chat['message']}")
+            with st.chat_message("assistant"):
+                st.write(chat["message"])
 
-    # 메인 영역에 'Chat with ChatGPT' 제목 추가
+    # 채팅 입력 필드와 제목
     if st.session_state.lang == 'korean':
         st.write("## ChatGPT와의 채팅")
-        user_chat_input = st.text_input("메시지를 입력하세요:", key="user_chat_input")
+        user_chat_input = st.chat_input("메시지를 입력하세요:")
     else:
         st.write("## Chat with ChatGPT")
-        user_chat_input = st.text_input("Enter your message:", key="user_chat_input")
+        user_chat_input = st.chat_input("Enter your message:")
 
     if user_chat_input:
+        # 사용자의 메시지를 세션 상태와 화면에 추가
         add_chat_message("user", user_chat_input)
+        with st.chat_message("user"):
+            st.write(user_chat_input)
+
+        # GPT의 응답 생성 및 표시
         with st.spinner("GPT가 응답 중입니다..."):
             gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
             add_chat_message("assistant", gpt_response)
-            st.markdown(f"**🤖 GPT:** {gpt_response}")
+            with st.chat_message("assistant"):
+                st.write(gpt_response)
 
 # 채팅 메시지 추가 함수
 def add_chat_message(role, message):
@@ -352,3 +360,4 @@ if st.session_state.get("processed", False):
 # 하단에 주의 문구 추가
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
+
