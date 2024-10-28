@@ -244,65 +244,99 @@ chat_interface()
 
 if uploaded_file is not None:
     if uploaded_file.type == "application/pdf":
-        extracted_text = pdf_to_text(uploaded_file)
+        # 파일이 변경되었는지 확인
+        if "uploaded_file_id" not in st.session_state or st.session_state.uploaded_file_id != uploaded_file.id:
+            st.session_state.uploaded_file_id = uploaded_file.id
 
-        if not extracted_text.strip():
-            st.error("PDF에서 텍스트를 추출할 수 없습니다. 다른 PDF를 시도해보세요.")
-        else:
-            st.success("PDF에서 텍스트를 추출했습니다.")
-            language_code = detect_language(extracted_text)
-            if language_code == 'ko':
-                lang = 'korean'
-                language_name = '한국어'
-            elif language_code == 'en':
-                lang = 'english'
-                language_name = '영어'
+            # 이전에 저장된 결과 초기화
+            st.session_state.extracted_text = ""
+            st.session_state.summary = ""
+            st.session_state.keywords = ""
+            st.session_state.term_info = ""
+            st.session_state.quiz = ""
+            st.session_state.exam_questions = ""
+            st.session_state.gpt_questions = []
+            st.session_state.processed = False
+
+        # 이미 처리된 경우 재처리하지 않음
+        if not st.session_state.processed:
+            extracted_text = pdf_to_text(uploaded_file)
+
+            if not extracted_text.strip():
+                st.error("PDF에서 텍스트를 추출할 수 없습니다. 다른 PDF를 시도해보세요.")
             else:
-                lang = 'english'  # 기본값을 영어로 설정
-                language_name = '알 수 없음 (영어로 진행합니다)'
+                st.success("PDF에서 텍스트를 추출했습니다.")
+                language_code = detect_language(extracted_text)
+                if language_code == 'ko':
+                    lang = 'korean'
+                    language_name = '한국어'
+                elif language_code == 'en':
+                    lang = 'english'
+                    language_name = '영어'
+                else:
+                    lang = 'english'  # 기본값을 영어로 설정
+                    language_name = '알 수 없음 (영어로 진행합니다)'
 
-            st.write(f"### 감지된 언어: {language_name}")
-            st.session_state.lang = lang
-            st.session_state.extracted_text = extracted_text
+                st.write(f"### 감지된 언어: {language_name}")
+                st.session_state.lang = lang
+                st.session_state.extracted_text = extracted_text
 
-            # 요약 생성 및 저장
-            with st.spinner("요약을 생성하고 있습니다..."):
-                summary = summarize_pdf(extracted_text, lang)
-                st.write("## 요약 결과")
-                st.write(summary)
-                st.session_state.summary = summary
+                # 요약 생성 및 저장
+                with st.spinner("요약을 생성하고 있습니다..."):
+                    summary = summarize_pdf(extracted_text, lang)
+                    st.session_state.summary = summary
 
-            # 핵심 요약 단어 추출 (출처 포함)
-            with st.spinner("핵심 요약 단어를 추출하고 있습니다..."):
-                key_summary_words = extract_key_summary_words_with_sources(extracted_text, lang)
-                st.write("## 핵심 요약 단어 및 출처")
-                st.write(key_summary_words)
-                st.session_state.keywords = key_summary_words
+                # 핵심 요약 단어 추출 (출처 포함)
+                with st.spinner("핵심 요약 단어를 추출하고 있습니다..."):
+                    key_summary_words = extract_key_summary_words_with_sources(extracted_text, lang)
+                    st.session_state.keywords = key_summary_words
 
-            # 중요 단어 정보 추출
-            with st.spinner("요약 내 단어를 검색하고 있습니다..."):
-                term_info = extract_and_search_terms(summary, extracted_text, language=lang)
-                st.write("## 요약 내 중요한 단어 정보")
-                st.write(term_info)
+                # 중요 단어 정보 추출
+                with st.spinner("요약 내 단어를 검색하고 있습니다..."):
+                    term_info = extract_and_search_terms(summary, extracted_text, language=lang)
+                    st.session_state.term_info = term_info
 
-            # 퀴즈 생성
-            with st.spinner("퀴즈를 생성하고 있습니다..."):
-                quiz = generate_quiz(extracted_text, lang)
-                st.write("## 생성된 퀴즈")
-                st.write(quiz)
+                # 퀴즈 생성
+                with st.spinner("퀴즈를 생성하고 있습니다..."):
+                    quiz = generate_quiz(extracted_text, lang)
+                    st.session_state.quiz = quiz
 
-            # 시험 문제 생성
-            with st.spinner("시험 문제를 생성하고 있습니다..."):
-                exam_questions = generate_exam_questions(extracted_text, lang)
-                st.write("## 생성된 시험 문제")
-                st.write(exam_questions)
+                # 시험 문제 생성
+                with st.spinner("시험 문제를 생성하고 있습니다..."):
+                    exam_questions = generate_exam_questions(extracted_text, lang)
+                    st.session_state.exam_questions = exam_questions
 
-            # GPT가 사용자에게 질문 생성
-            with st.spinner("GPT가 질문을 생성하고 있습니다..."):
-                gpt_questions = generate_questions_for_user(extracted_text, lang)
-                st.session_state.gpt_questions = gpt_questions
+                # GPT가 사용자에게 질문 생성
+                with st.spinner("GPT가 질문을 생성하고 있습니다..."):
+                    gpt_questions = generate_questions_for_user(extracted_text, lang)
+                    st.session_state.gpt_questions = gpt_questions
 
-            st.session_state.processed = True
+                st.session_state.processed = True
+        else:
+            # 이미 처리된 경우 세션 상태에서 데이터 가져오기
+            extracted_text = st.session_state.extracted_text
+            summary = st.session_state.summary
+            key_summary_words = st.session_state.keywords
+            term_info = st.session_state.term_info
+            quiz = st.session_state.quiz
+            exam_questions = st.session_state.exam_questions
+
+        # 결과 표시
+        st.write("## 요약 결과")
+        st.write(summary)
+
+        st.write("## 핵심 요약 단어 및 출처")
+        st.write(key_summary_words)
+
+        st.write("## 요약 내 중요한 단어 정보")
+        st.write(term_info)
+
+        st.write("## 생성된 퀴즈")
+        st.write(quiz)
+
+        st.write("## 생성된 시험 문제")
+        st.write(exam_questions)
+
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF 파일만 올려주세요.")
 
@@ -360,4 +394,3 @@ if st.session_state.get("processed", False):
 # 하단에 주의 문구 추가
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
-
