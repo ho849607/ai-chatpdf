@@ -39,7 +39,7 @@ openai.api_key = openai_api_key
 st.title("📚 PDF 학습 도우미")
 st.write("---")
 
-# **여기에서 'lang'을 초기화합니다.**
+# 'lang' 초기화
 if 'lang' not in st.session_state:
     st.session_state.lang = 'english'  # 기본 언어를 영어로 설정합니다.
 
@@ -130,7 +130,7 @@ def extract_key_summary_words_with_sources(text, language):
 키워드1 (출처)
 키워드2 (출처)
 ...
-        
+
 텍스트:
 {text}
 """
@@ -244,7 +244,7 @@ if uploaded_file is not None:
                 language_name = '영어'
             else:
                 lang = 'english'  # 기본값을 영어로 설정
-                language_name = '알 수 없음 (영어로 진행합니다)"
+                language_name = '알 수 없음 (영어로 진행합니다)'
 
             st.write(f"### 감지된 언어: {language_name}")
             st.session_state.lang = lang
@@ -348,4 +348,3 @@ if st.session_state.get("processed", False):
 # 하단에 주의 문구 추가
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
-
