@@ -1,5 +1,5 @@
 chromadb==0.3.21
-docarray==0.25.1
+docarray
 JPype1==1.5.0
 langchain==0.0.208
 langchain-community
