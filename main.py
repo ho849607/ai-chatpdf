@@ -17,22 +17,20 @@ import pytesseract
 import subprocess  # hwp 처리용
 import tempfile
 
-# Tesseract 경로 설정 (Windows 환경에서 Tesseract-OCR을 설치한 경로로 변경)
+# Tesseract 경로 설정 (Windows 환경에서 필요 시)
 # 예: pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-# 아래는 필요시 주석 해제 후 사용하세요.
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # 초기 설정
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# 한국어 불용어 리스트 정의
+# 한국어 불용어 리스트
 korean_stopwords = ['이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에',
                     '의', '은', '는', '가', '와', '과', '하다', '있다', '되다', '이다',
                     '으로', '에서', '까지', '부터', '까지', '만', '하다', '그리고',
                     '하지만', '그러나']
 
-# .env 파일에서 환경 변수 로드
+# .env 로드
 dotenv_path = Path('.env')
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -46,23 +44,22 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
-# 제목 설정 (Study Helper로 변경)
+# 제목
 st.title("📚 Study Helper")
 st.write("---")
 
-# 'lang' 초기화
+# 언어 상태 초기화
 if 'lang' not in st.session_state:
-    st.session_state.lang = 'english'  # 기본 언어를 영어로 설정합니다.
+    st.session_state.lang = 'english'
 
-# 저작권 유의사항 경고 메시지 추가
+# 저작권 유의사항
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-# 채팅 인터페이스 함수 정의
 def chat_interface():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # 채팅 기록 표시
+    # 채팅 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
             with st.chat_message("user"):
@@ -83,7 +80,6 @@ def chat_interface():
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
             st.write(user_chat_input)
-
         with st.spinner("GPT가 응답 중입니다..."):
             gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
             add_chat_message("assistant", gpt_response)
@@ -95,7 +91,6 @@ def add_chat_message(role, message):
         st.session_state.chat_history = []
     st.session_state.chat_history.append({"role": role, "message": message})
 
-# PDF를 텍스트로 변환하는 함수
 def pdf_to_text(upload_file):
     try:
         with pdfplumber.open(BytesIO(upload_file.getvalue())) as pdf:
@@ -109,7 +104,6 @@ def pdf_to_text(upload_file):
         st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
 
-# PPTX에서 텍스트 추출
 def pptx_to_text(upload_file):
     try:
         prs = Presentation(BytesIO(upload_file.getvalue()))
@@ -123,23 +117,20 @@ def pptx_to_text(upload_file):
         st.error(f"PPTX에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
 
-# 이미지에서 텍스트 추출 (한글+영어 지원)
 def image_to_text(uploaded_image):
     try:
         image = Image.open(uploaded_image)
-        text = pytesseract.image_to_string(image, lang='kor+eng')  # 한국어와 영어 지원
+        text = pytesseract.image_to_string(image, lang='kor+eng')  # 한글+영어
         return text
     except Exception as e:
         st.error(f'이미지에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}')
         return ""
 
-# HWP에서 텍스트 추출
 def hwp_to_text(upload_file):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
             tmp.write(upload_file.getvalue())
             tmp_path = tmp.name
-        # hwp5txt 툴 필요
         result = subprocess.run(["hwp5txt", tmp_path], capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout
@@ -150,7 +141,6 @@ def hwp_to_text(upload_file):
         st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
         return ""
 
-# 언어 감지 함수
 def detect_language(text):
     try:
         llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
@@ -163,7 +153,6 @@ def detect_language(text):
         st.error(f"언어 감지 중 오류가 발생했습니다: {e}")
         return "unknown"
 
-# 요약 생성 함수
 def summarize_pdf(text, language):
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     if language == 'korean':
@@ -211,7 +200,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
 def generate_quiz(text, language):
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     if language == 'korean':
-        prompt = f"다음 내용을 기반으로 객관식 5문제 생성(4지선다), 정답 표시:\n\n{text}"
+        prompt = f"다음 내용을 기반으로 객관식 5문제(4지선다)를 만들고 정답을 표시:\n\n{text}"
     else:
         prompt = f"Based on the following content, create 5 multiple-choice questions (4 options) and indicate the correct answer:\n\n{text}"
     messages = [HumanMessage(content=prompt)]
@@ -249,16 +238,12 @@ def ask_gpt_question(question, language):
     response = llm(messages)
     return response.content
 
-# 결과를 PPTX로 생성하는 함수
 def create_ppt_from_text(text, filename="summary_output.pptx"):
     prs = Presentation()
-    # 기본 레이아웃 사용 (제목 + 본문)
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
     slide.shapes.title.text = "Summary"
     slide.placeholders[1].text = text
-
-    # 추가적인 슬라이드를 만들고 싶다면 필요에 따라 확장 가능
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
@@ -267,8 +252,8 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-# 파일 업로드 (HWP 포함)
-uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)", type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp'])
+uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)", 
+                                 type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp'])
 
 chat_interface()
 
@@ -279,11 +264,9 @@ if uploaded_file is not None:
     if extension == ".pdf":
         file_bytes = uploaded_file.getvalue()
         file_hash = hashlib.md5(file_bytes).hexdigest()
-
         if ("uploaded_file_hash" not in st.session_state or
                 st.session_state.uploaded_file_hash != file_hash):
             st.session_state.uploaded_file_hash = file_hash
-            # 이전 결과 초기화
             st.session_state.extracted_text = ""
             st.session_state.summary = ""
             st.session_state.keywords = ""
@@ -297,8 +280,7 @@ if uploaded_file is not None:
             extracted_text = pdf_to_text(uploaded_file)
             if not extracted_text.strip():
                 st.error("PDF에서 텍스트를 추출할 수 없습니다.")
-                summary = ""
-                st.session_state.summary = summary
+                st.session_state.summary = ""
             else:
                 st.success("PDF에서 텍스트 추출 완료.")
                 language_code = detect_language(extracted_text)
@@ -311,7 +293,6 @@ if uploaded_file is not None:
                 else:
                     lang = 'english'
                     language_name = '알 수 없음 (영어 진행)'
-
                 st.write(f"### 감지된 언어: {language_name}")
                 st.session_state.lang = lang
                 st.session_state.extracted_text = extracted_text
@@ -352,7 +333,6 @@ if uploaded_file is not None:
     elif extension == ".pptx":
         file_bytes = uploaded_file.getvalue()
         file_hash = hashlib.md5(file_bytes).hexdigest()
-
         if ("uploaded_file_hash" not in st.session_state or
                 st.session_state.uploaded_file_hash != file_hash):
             st.session_state.uploaded_file_hash = file_hash
@@ -369,8 +349,7 @@ if uploaded_file is not None:
             extracted_text = pptx_to_text(uploaded_file)
             if not extracted_text.strip():
                 st.error("PPTX에서 텍스트를 추출할 수 없습니다.")
-                summary = ""
-                st.session_state.summary = summary
+                st.session_state.summary = ""
             else:
                 st.success("PPTX에서 텍스트 추출 완료.")
                 language_code = detect_language(extracted_text)
@@ -383,7 +362,6 @@ if uploaded_file is not None:
                 else:
                     lang = 'english'
                     language_name = '알 수 없음 (영어 진행)'
-
                 st.write(f"### 감지된 언어: {language_name}")
                 st.session_state.lang = lang
                 st.session_state.extracted_text = extracted_text
@@ -413,18 +391,17 @@ if uploaded_file is not None:
                     st.session_state.gpt_questions = gpt_questions
 
                 st.session_state.processed = True
-            else:
-                extracted_text = st.session_state.extracted_text
-                summary = st.session_state.summary
-                key_summary_words = st.session_state.keywords
-                term_info = st.session_state.term_info
-                quiz = st.session_state.quiz
-                exam_questions = st.session_state.exam_questions
+        else:
+            extracted_text = st.session_state.extracted_text
+            summary = st.session_state.summary
+            key_summary_words = st.session_state.keywords
+            term_info = st.session_state.term_info
+            quiz = st.session_state.quiz
+            exam_questions = st.session_state.exam_questions
 
     elif extension in [".png", ".jpg", ".jpeg"]:
         file_bytes = uploaded_file.getvalue()
         file_hash = hashlib.md5(file_bytes).hexdigest()
-
         if ("uploaded_file_hash" not in st.session_state or
                 st.session_state.uploaded_file_hash != file_hash):
             st.session_state.uploaded_file_hash = file_hash
@@ -441,8 +418,7 @@ if uploaded_file is not None:
             extracted_text = image_to_text(uploaded_file)
             if not extracted_text.strip():
                 st.error("이미지에서 텍스트를 추출할 수 없습니다.")
-                summary = ""
-                st.session_state.summary = summary
+                st.session_state.summary = ""
             else:
                 st.success("이미지에서 텍스트 추출 완료.")
                 language_code = detect_language(extracted_text)
@@ -455,7 +431,6 @@ if uploaded_file is not None:
                 else:
                     lang = 'english'
                     language_name = '알 수 없음 (영어 진행)'
-
                 st.write(f"### 감지된 언어: {language_name}")
                 st.session_state.lang = lang
                 st.session_state.extracted_text = extracted_text
@@ -485,18 +460,17 @@ if uploaded_file is not None:
                     st.session_state.gpt_questions = gpt_questions
 
                 st.session_state.processed = True
-            else:
-                extracted_text = st.session_state.extracted_text
-                summary = st.session_state.summary
-                key_summary_words = st.session_state.keywords
-                term_info = st.session_state.term_info
-                quiz = st.session_state.quiz
-                exam_questions = st.session_state.exam_questions
+        else:
+            extracted_text = st.session_state.extracted_text
+            summary = st.session_state.summary
+            key_summary_words = st.session_state.keywords
+            term_info = st.session_state.term_info
+            quiz = st.session_state.quiz
+            exam_questions = st.session_state.exam_questions
 
     elif extension == ".hwp":
         file_bytes = uploaded_file.getvalue()
         file_hash = hashlib.md5(file_bytes).hexdigest()
-
         if ("uploaded_file_hash" not in st.session_state or
                 st.session_state.uploaded_file_hash != file_hash):
             st.session_state.uploaded_file_hash = file_hash
@@ -513,8 +487,7 @@ if uploaded_file is not None:
             extracted_text = hwp_to_text(uploaded_file)
             if not extracted_text.strip():
                 st.error("HWP에서 텍스트를 추출할 수 없습니다.")
-                summary = ""
-                st.session_state.summary = summary
+                st.session_state.summary = ""
             else:
                 st.success("HWP에서 텍스트 추출 완료.")
                 language_code = detect_language(extracted_text)
@@ -527,7 +500,6 @@ if uploaded_file is not None:
                 else:
                     lang = 'english'
                     language_name = '알 수 없음 (영어 진행)'
-
                 st.write(f"### 감지된 언어: {language_name}")
                 st.session_state.lang = lang
                 st.session_state.extracted_text = extracted_text
@@ -557,18 +529,17 @@ if uploaded_file is not None:
                     st.session_state.gpt_questions = gpt_questions
 
                 st.session_state.processed = True
-            else:
-                extracted_text = st.session_state.extracted_text
-                summary = st.session_state.summary
-                key_summary_words = st.session_state.keywords
-                term_info = st.session_state.term_info
-                quiz = st.session_state.quiz
-                exam_questions = st.session_state.exam_questions
+        else:
+            extracted_text = st.session_state.extracted_text
+            summary = st.session_state.summary
+            key_summary_words = st.session_state.keywords
+            term_info = st.session_state.term_info
+            quiz = st.session_state.quiz
+            exam_questions = st.session_state.exam_questions
 
     else:
         st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP 파일만 올려주세요.")
 
-    # 결과 표시
     if st.session_state.get("processed", False):
         if 'summary' in st.session_state and st.session_state.summary.strip():
             st.write("## 요약 결과")
@@ -576,13 +547,11 @@ if uploaded_file is not None:
         else:
             st.write("## 요약 결과를 표시할 수 없습니다.")
 
-        if ('keywords' in st.session_state and
-                st.session_state.keywords.strip()):
+        if 'keywords' in st.session_state and st.session_state.keywords.strip():
             st.write("## 핵심 요약 단어 및 출처")
             st.write(st.session_state.keywords)
 
-        if ('term_info' in st.session_state and
-                st.session_state.term_info.strip()):
+        if 'term_info' in st.session_state and st.session_state.term_info.strip():
             st.write("## 요약 내 중요한 단어 정보")
             st.write(st.session_state.term_info)
 
@@ -590,12 +559,10 @@ if uploaded_file is not None:
             st.write("## 생성된 퀴즈")
             st.write(st.session_state.quiz)
 
-        if ('exam_questions' in st.session_state and
-                st.session_state.exam_questions.strip()):
+        if 'exam_questions' in st.session_state and st.session_state.exam_questions.strip():
             st.write("## 생성된 시험 문제")
             st.write(st.session_state.exam_questions)
 
-        # PPT 생성 기능 추가
         st.write("---")
         if st.button("요약 내용을 PPT로 다운로드"):
             ppt_buffer = create_ppt_from_text(st.session_state.summary)
@@ -606,7 +573,6 @@ if uploaded_file is not None:
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
-# 키워드 검색 기능
 if st.session_state.get("processed", False):
     st.write("---")
     if st.session_state.lang == 'korean':
@@ -634,7 +600,6 @@ if st.session_state.get("processed", False):
             else:
                 st.write("No results found.")
 
-# GPT가 사용자에게 질문
 if st.session_state.get("processed", False):
     st.write("---")
     if st.session_state.lang == 'korean':
@@ -660,6 +625,7 @@ if st.session_state.get("processed", False):
 
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
+
 
 
 
