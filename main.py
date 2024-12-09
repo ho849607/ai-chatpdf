@@ -14,7 +14,14 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from PIL import Image  # 이미지 처리를 위한 라이브러리
-import pytesseract  # Tesseract OCR 라이브러리
+
+# pytesseract 임포트 시도
+try:
+    import pytesseract  # Tesseract OCR 라이브러리
+    pytesseract_available = True
+except ModuleNotFoundError:
+    pytesseract_available = False
+    st.warning("pytesseract 라이브러리를 찾을 수 없습니다. 이미지를 통한 OCR 기능이 비활성화됩니다.")
 
 # 초기 설정
 nltk.download('punkt')
@@ -40,7 +47,7 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
-# Tesseract 경로 설정 (Windows 사용자라면 필요)
+# Tesseract 경로 설정 (필요한 경우 사용)
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # 제목 설정
@@ -126,6 +133,9 @@ def pptx_to_text(upload_file):
 
 # 이미지에서 텍스트를 추출하는 함수
 def image_to_text(uploaded_image):
+    if not pytesseract_available:
+        st.warning("pytesseract를 사용할 수 없어 OCR 기능을 비활성화합니다.")
+        return ""
     try:
         image = Image.open(uploaded_image)
         text = pytesseract.image_to_string(image, lang='kor+eng')  # 한국어와 영어 지원
@@ -663,4 +673,5 @@ if st.session_state.get("processed", False):
 
 # 하단에 주의 문구 추가
 st.write("---")
-st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**") 
+st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
+
