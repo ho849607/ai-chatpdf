@@ -59,21 +59,21 @@ model_option = st.selectbox(
     "모델 선택",
     [
         "고품질(느림): 높은 품질의 응답 (GPT-4 기반, 대부분 업무 적합)", 
-        "일반(빠름): 논리적이고 빠른 처리 (chatgpt4o-mini 기반)"
+        "일반(빠름): 논리적이고 빠른 처리 (GPT-3.5-turbo 기반)"
     ],
     index=1
 )
 
+# 모델 매핑
 if model_option.startswith("고품질(느림)"):
     selected_model = "gpt-4"
 else:
-    selected_model = "chatgpt4o-mini"
-
+    # "일반(빠름)"은 gpt-3.5-turbo 사용
+    selected_model = "gpt-3.5-turbo"
 
 # 사이드바: 기록 보관 기능 (예: 채팅 기록 다운로드)
 st.sidebar.write("## 기록 보관")
 if "chat_history" in st.session_state and st.session_state.chat_history:
-    # 채팅 기록 다운로드 버튼
     chat_text = "\n".join([f"{msg['role']}: {msg['message']}" for msg in st.session_state.chat_history])
     st.sidebar.download_button(
         "채팅 기록 다운로드",
@@ -83,7 +83,6 @@ if "chat_history" in st.session_state and st.session_state.chat_history:
     )
 else:
     st.sidebar.write("채팅 기록이 없습니다.")
-
 
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
@@ -163,7 +162,6 @@ def hwp_or_hwpx_to_text(upload_file, extension):
     if extension == '.hwpx':
         st.error("HWPX 파일은 현재 지원되지 않습니다.")
         return ""
-    # hwp 처리 (pyhwp 사용)
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
             tmp.write(upload_file.getvalue())
@@ -460,3 +458,4 @@ if st.session_state.get("processed", False):
 
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
+
