@@ -40,7 +40,7 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
-st.title("📚 Study Helper (chatgpt4o-mini)")
+st.title("📚 Study Helper")
 st.write("---")
 
 if 'lang' not in st.session_state:
@@ -66,10 +66,10 @@ def chat_interface():
                 st.write(chat["message"])
 
     if st.session_state.lang == 'korean':
-        st.write("## ChatGPT와의 채팅 (chatgpt4o-mini)")
+        st.write("## ChatGPT와의 채팅")
         user_chat_input = st.chat_input("메시지를 입력하세요:")
     else:
-        st.write("## Chat with ChatGPT (chatgpt4o-mini)")
+        st.write("## Chat with ChatGPT")
         user_chat_input = st.chat_input("Enter your message:")
 
     if user_chat_input:
@@ -137,7 +137,7 @@ def hwp_or_hwpx_to_text(upload_file, extension):
         return ""
 
 def detect_language(text):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)  # 모델명 표시되지 않으므로 변경 가능
     prompt = f"다음 텍스트의 언어를 ISO 639-1 코드로 감지해 주세요 (예: 'en'은 영어, 'ko'는 한국어):\n\n{text[:500]}"
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
@@ -145,7 +145,7 @@ def detect_language(text):
     return language_code
 
 def summarize_pdf(text, language):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     if language == 'korean':
         prompt = f"다음 텍스트를 읽고 서론, 본론, 결론으로 구성된 자세한 요약을 작성해 주세요:\n\n{text}"
     else:
@@ -155,7 +155,7 @@ def summarize_pdf(text, language):
     return response.content.strip()
 
 def extract_key_summary_words_with_sources(text, language):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=1)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=1)
     if language == 'korean':
         prompt = f"""다음 텍스트에서 중요한 키워드 5~10개를 추출하고, 각 키워드의 출처를 표시해주세요.
 
@@ -179,7 +179,7 @@ Text:
     return response.content.strip()
 
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     if language == 'korean':
         prompt = f"다음 요약에서 중요한 용어 5~10개를 추출하고, 각 용어 정의와 텍스트 내 페이지 정보를 제공:\n\n{summary_text}"
     else:
@@ -189,7 +189,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     return response.content.strip()
 
 def generate_quiz(text, language):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0.5)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     if language == 'korean':
         prompt = f"다음 내용을 기반으로 객관식 5문제 생성(4지선다), 정답 표시:\n\n{text}"
     else:
@@ -199,7 +199,7 @@ def generate_quiz(text, language):
     return response.content
 
 def generate_exam_questions(text, language):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0.5)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     if language == 'korean':
         prompt = f"다음 내용을 기반으로 중요한 시험 문제 5개를 제시:\n\n{text}"
     else:
@@ -209,7 +209,7 @@ def generate_exam_questions(text, language):
     return response.content
 
 def generate_questions_for_user(text, language):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0.5)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     if language == 'korean':
         prompt = f"다음 내용을 기반으로 사용자가 깊이 생각할 수 있는 질문 3개 제시:\n\n{text}"
     else:
@@ -220,7 +220,7 @@ def generate_questions_for_user(text, language):
     return questions
 
 def ask_gpt_question(question, language):
-    llm = ChatOpenAI(model_name="chatgpt4o-mini", temperature=0.5)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     if language == 'korean':
         prompt = f"다음 질문에 답변: {question}"
     else:
@@ -327,8 +327,7 @@ if uploaded_file is not None:
         elif extension in [".hwp", ".hwpx"]:
             extracted_text = hwp_or_hwpx_to_text(uploaded_file, extension)
             if extension == ".hwpx" and not extracted_text.strip():
-                # hwpx 미지원으로 처리 불가 -> 여기서 바로 return
-                st.stop()
+                st.stop()  # hwpx 지원 불가하면 여기서 중단
             process_text(extracted_text)
         else:
             st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, HWPX 파일만 올려주세요.")
