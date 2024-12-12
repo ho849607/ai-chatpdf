@@ -15,7 +15,13 @@ from nltk.corpus import stopwords
 from PIL import Image
 import pytesseract
 import tempfile
-import pyhwp  # pyhwp 추가
+
+# pyhwp 모듈 임포트 시도
+try:
+    import pyhwp
+    HWP_SUPPORTED = True
+except ModuleNotFoundError:
+    HWP_SUPPORTED = False
 
 # 초기 설정
 nltk.download('punkt')
@@ -47,6 +53,22 @@ if 'lang' not in st.session_state:
     st.session_state.lang = 'english'
 
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
+
+# 모델 선택 기능 추가
+# "고품질(느림)"은 GPT-4, "일반(빠름)"은 chatgpt4o-mini 사용
+model_option = st.sidebar.selectbox(
+    "모델 선택",
+    [
+        "고품질(느림): 높은 품질의 응답 (GPT-4 기반, 대부분 업무 적합)", 
+        "일반(빠름): 논리적이고 빠른 처리 (chatgpt4o-mini 기반)"
+    ],
+    index=1
+)
+
+if model_option.startswith("고품질(느림)"):
+    selected_model = "gpt-4"
+else:
+    selected_model = "chatgpt4o-mini"
 
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
@@ -119,7 +141,10 @@ def image_to_text(uploaded_image):
         return ""
 
 def hwp_or_hwpx_to_text(upload_file, extension):
-    # hwpx 지원 불가 처리
+    if not HWP_SUPPORTED:
+        st.error("HWP/HWPX 파일 처리를 지원하지 않습니다. pyhwp 라이브러리가 설치되어 있지 않습니다.")
+        return ""
+
     if extension == '.hwpx':
         st.error("HWPX 파일은 현재 지원되지 않습니다.")
         return ""
@@ -137,7 +162,7 @@ def hwp_or_hwpx_to_text(upload_file, extension):
         return ""
 
 def detect_language(text):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)  # 모델명 표시되지 않으므로 변경 가능
+    llm = ChatOpenAI(model_name=selected_model, temperature=0)
     prompt = f"다음 텍스트의 언어를 ISO 639-1 코드로 감지해 주세요 (예: 'en'은 영어, 'ko'는 한국어):\n\n{text[:500]}"
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
@@ -145,7 +170,7 @@ def detect_language(text):
     return language_code
 
 def summarize_pdf(text, language):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+    llm = ChatOpenAI(model_name=selected_model, temperature=0)
     if language == 'korean':
         prompt = f"다음 텍스트를 읽고 서론, 본론, 결론으로 구성된 자세한 요약을 작성해 주세요:\n\n{text}"
     else:
@@ -155,7 +180,7 @@ def summarize_pdf(text, language):
     return response.content.strip()
 
 def extract_key_summary_words_with_sources(text, language):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=1)
+    llm = ChatOpenAI(model_name=selected_model, temperature=1)
     if language == 'korean':
         prompt = f"""다음 텍스트에서 중요한 키워드 5~10개를 추출하고, 각 키워드의 출처를 표시해주세요.
 
@@ -179,7 +204,7 @@ Text:
     return response.content.strip()
 
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+    llm = ChatOpenAI(model_name=selected_model, temperature=0)
     if language == 'korean':
         prompt = f"다음 요약에서 중요한 용어 5~10개를 추출하고, 각 용어 정의와 텍스트 내 페이지 정보를 제공:\n\n{summary_text}"
     else:
@@ -189,7 +214,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     return response.content.strip()
 
 def generate_quiz(text, language):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
+    llm = ChatOpenAI(model_name=selected_model, temperature=0.5)
     if language == 'korean':
         prompt = f"다음 내용을 기반으로 객관식 5문제 생성(4지선다), 정답 표시:\n\n{text}"
     else:
@@ -199,7 +224,7 @@ def generate_quiz(text, language):
     return response.content
 
 def generate_exam_questions(text, language):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
+    llm = ChatOpenAI(model_name=selected_model, temperature=0.5)
     if language == 'korean':
         prompt = f"다음 내용을 기반으로 중요한 시험 문제 5개를 제시:\n\n{text}"
     else:
@@ -209,7 +234,7 @@ def generate_exam_questions(text, language):
     return response.content
 
 def generate_questions_for_user(text, language):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
+    llm = ChatOpenAI(model_name=selected_model, temperature=0.5)
     if language == 'korean':
         prompt = f"다음 내용을 기반으로 사용자가 깊이 생각할 수 있는 질문 3개 제시:\n\n{text}"
     else:
@@ -220,7 +245,7 @@ def generate_questions_for_user(text, language):
     return questions
 
 def ask_gpt_question(question, language):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
+    llm = ChatOpenAI(model_name=selected_model, temperature=0.5)
     if language == 'korean':
         prompt = f"다음 질문에 답변: {question}"
     else:
@@ -325,10 +350,13 @@ if uploaded_file is not None:
             extracted_text = image_to_text(uploaded_file)
             process_text(extracted_text)
         elif extension in [".hwp", ".hwpx"]:
-            extracted_text = hwp_or_hwpx_to_text(uploaded_file, extension)
-            if extension == ".hwpx" and not extracted_text.strip():
-                st.stop()  # hwpx 지원 불가하면 여기서 중단
-            process_text(extracted_text)
+            if not HWP_SUPPORTED:
+                st.error("HWP/HWPX 파일 처리를 지원하지 않습니다. pyhwp 라이브러리가 설치되어 있지 않습니다.")
+            else:
+                extracted_text = hwp_or_hwpx_to_text(uploaded_file, extension)
+                if extension == ".hwpx" and not extracted_text.strip():
+                    st.stop()  # hwpx 지원 불가하면 여기서 중단
+                process_text(extracted_text)
         else:
             st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, HWPX 파일만 올려주세요.")
 
