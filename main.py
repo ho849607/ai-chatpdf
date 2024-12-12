@@ -14,8 +14,8 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from PIL import Image
 import pytesseract
-import subprocess
 import tempfile
+import pyhwp  # pyhwp 추가
 
 # 초기 설정
 nltk.download('punkt')
@@ -118,19 +118,22 @@ def image_to_text(uploaded_image):
         st.error(f'이미지에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}')
         return ""
 
-def hwp_or_hwpx_to_text(upload_file):
+def hwp_or_hwpx_to_text(upload_file, extension):
+    # hwpx 지원 불가 처리
+    if extension == '.hwpx':
+        st.error("HWPX 파일은 현재 지원되지 않습니다.")
+        return ""
+    # hwp 처리 (pyhwp 사용)
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.tmp') as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
             tmp.write(upload_file.getvalue())
             tmp_path = tmp.name
-        result = subprocess.run(["hwp5txt", tmp_path], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout
-        else:
-            st.error("HWP/HWPX에서 텍스트를 추출할 수 없습니다. hwp5txt 툴이 설치되어 있는지 확인해주세요.")
-            return ""
+        
+        doc = pyhwp.HwpDocument(tmp_path)
+        text = doc.body_text or ""
+        return text
     except Exception as e:
-        st.error(f"HWP/HWPX 처리 중 오류가 발생했습니다: {e}")
+        st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
         return ""
 
 def detect_language(text):
@@ -322,7 +325,10 @@ if uploaded_file is not None:
             extracted_text = image_to_text(uploaded_file)
             process_text(extracted_text)
         elif extension in [".hwp", ".hwpx"]:
-            extracted_text = hwp_or_hwpx_to_text(uploaded_file)
+            extracted_text = hwp_or_hwpx_to_text(uploaded_file, extension)
+            if extension == ".hwpx" and not extracted_text.strip():
+                # hwpx 미지원으로 처리 불가 -> 여기서 바로 return
+                st.stop()
             process_text(extracted_text)
         else:
             st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, HWPX 파일만 올려주세요.")
