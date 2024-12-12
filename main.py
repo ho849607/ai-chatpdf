@@ -14,7 +14,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from PIL import Image
 import pytesseract
-import subprocess  # hwp 처리용
+import subprocess  # hwp, hwpx 처리용
 import tempfile
 
 # 초기 설정
@@ -121,19 +121,20 @@ def image_to_text(uploaded_image):
         st.error(f'이미지에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}')
         return ""
 
-def hwp_to_text(upload_file):
+def hwp_or_hwpx_to_text(upload_file):
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.tmp') as tmp:
             tmp.write(upload_file.getvalue())
             tmp_path = tmp.name
+        # hwp5txt는 hwp/hwpx 모두 처리가 가능
         result = subprocess.run(["hwp5txt", tmp_path], capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout
         else:
-            st.error("HWP에서 텍스트를 추출할 수 없습니다. hwp5txt 툴이 설치되어 있는지 확인해주세요.")
+            st.error("HWP/HWPX에서 텍스트를 추출할 수 없습니다. hwp5txt 툴이 설치되어 있는지 확인해주세요.")
             return ""
     except Exception as e:
-        st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
+        st.error(f"HWP/HWPX 처리 중 오류가 발생했습니다: {e}")
         return ""
 
 def detect_language(text):
@@ -244,7 +245,9 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)", type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp'])
+# hwpx 추가
+uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP, HWPX 지원)",
+                                 type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp', 'hwpx'])
 
 chat_interface()
 
@@ -253,21 +256,23 @@ if uploaded_file is not None:
     extension = os.path.splitext(filename)[1].lower()
 
     if extension == ".pdf":
-        # PDF 처리 로직 ...
+        # PDF 처리 로직...
         pass
     elif extension == ".pptx":
-        # PPTX 처리 로직 ...
+        # PPTX 처리 로직...
         pass
     elif extension in [".png", ".jpg", ".jpeg"]:
-        # 이미지 처리 로직 ...
+        # 이미지 처리 로직...
         pass
     elif extension == ".hwp":
-        # HWP 처리 로직 ...
+        # HWP 처리 로직...
+        pass
+    elif extension == ".hwpx":
+        # HWPX 처리 로직...
         pass
     else:
-        st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP 파일만 올려주세요.")
+        st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, HWPX 파일만 올려주세요.")
 
-# 이하 나머지 로직 동일하게 유지
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
 
