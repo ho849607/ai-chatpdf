@@ -54,24 +54,10 @@ if 'lang' not in st.session_state:
 
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-# 모델 선택을 상단(메인 영역)에 표시
-model_option = st.selectbox(
-    "모델 선택",
-    [
-        "고품질(느림): 높은 품질의 응답 (GPT-4 기반, 대부분 업무 적합)", 
-        "일반(빠름): 논리적이고 빠른 처리 (GPT-3.5-turbo 기반)"
-    ],
-    index=1
-)
+# 모델은 내부적으로 고정 (예: gpt-3.5-turbo)
+selected_model = "gpt-3.5-turbo"
 
-# 모델 매핑
-if model_option.startswith("고품질(느림)"):
-    selected_model = "gpt-4"
-else:
-    # "일반(빠름)"은 gpt-3.5-turbo 사용
-    selected_model = "gpt-3.5-turbo"
-
-# 사이드바: 기록 보관 기능 (예: 채팅 기록 다운로드)
+# 사이드바: 기록 보관 기능 (채팅 기록 다운로드)
 st.sidebar.write("## 기록 보관")
 if "chat_history" in st.session_state and st.session_state.chat_history:
     chat_text = "\n".join([f"{msg['role']}: {msg['message']}" for msg in st.session_state.chat_history])
