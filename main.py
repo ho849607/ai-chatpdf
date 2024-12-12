@@ -54,9 +54,8 @@ if 'lang' not in st.session_state:
 
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-# 모델 선택 기능 추가
-# "고품질(느림)"은 GPT-4, "일반(빠름)"은 chatgpt4o-mini 사용
-model_option = st.sidebar.selectbox(
+# 모델 선택을 상단(메인 영역)에 표시
+model_option = st.selectbox(
     "모델 선택",
     [
         "고품질(느림): 높은 품질의 응답 (GPT-4 기반, 대부분 업무 적합)", 
@@ -69,6 +68,22 @@ if model_option.startswith("고품질(느림)"):
     selected_model = "gpt-4"
 else:
     selected_model = "chatgpt4o-mini"
+
+
+# 사이드바: 기록 보관 기능 (예: 채팅 기록 다운로드)
+st.sidebar.write("## 기록 보관")
+if "chat_history" in st.session_state and st.session_state.chat_history:
+    # 채팅 기록 다운로드 버튼
+    chat_text = "\n".join([f"{msg['role']}: {msg['message']}" for msg in st.session_state.chat_history])
+    st.sidebar.download_button(
+        "채팅 기록 다운로드",
+        data=chat_text.encode('utf-8'),
+        file_name="chat_history.txt",
+        mime="text/plain"
+    )
+else:
+    st.sidebar.write("채팅 기록이 없습니다.")
+
 
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
