@@ -412,7 +412,3 @@ if st.session_state.get("processed", False):
 
 st.write("---")
 st.info("**ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.**")
-
-
-
-
