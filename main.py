@@ -66,9 +66,13 @@ def detect_language(text):
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=openai_api_key)
     prompt = f"다음 텍스트의 언어를 ISO 639-1 코드로 감지해 주세요 (예: 'en'은 영어, 'ko'는 한국어):\n\n{text[:500]}"
     messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    language_code = response.content.strip().lower().split()[0]
-    return language_code
+    try:
+        response = llm(messages)
+        language_code = response.content.strip().lower().split()[0]
+        return language_code
+    except Exception as e:
+        st.error(f"언어 감지 중 오류가 발생했습니다: {e}")
+        return "en"
 
 # ChatGPT 응답 함수
 def ask_gpt_question(question, language):
@@ -154,3 +158,4 @@ def chat_interface():
     st.write("⚠️ ChatGPT는 실수할 수 있으며, 정보가 항상 정확하지 않을 수 있습니다. 중요한 내용을 확인하세요.")
 
 chat_interface()
+
