@@ -150,4 +150,7 @@ def chat_interface():
             add_chat_message("assistant", response)
             st.write(f"**GPT**: {response}")
 
+    # ChatGPT 사용에 대한 경고 메시지 표시
+    st.write("⚠️ ChatGPT는 실수할 수 있으며, 정보가 항상 정확하지 않을 수 있습니다. 중요한 내용을 확인하세요.")
+
 chat_interface()
