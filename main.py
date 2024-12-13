@@ -50,6 +50,10 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'extracted_text' not in st.session_state:
     st.session_state.extracted_text = ""
+if 'gpt_questions' not in st.session_state:
+    st.session_state.gpt_questions = []
+if 'gpt_suggestions' not in st.session_state:
+    st.session_state.gpt_suggestions = ""
 
 st.title("📚 Study Helper with File Processing and Chat")
 st.write("---")
@@ -86,6 +90,39 @@ def ask_gpt_question(question, language):
         st.error(f"API 호출 중 오류가 발생했습니다: {e}")
         return ""
 
+# GPT가 질문 생성 함수
+def generate_gpt_questions(extracted_text, language):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=openai_api_key)
+    prompt = (
+        f"다음 텍스트를 기반으로 사용자가 깊이 생각할 수 있는 질문 3개를 제안해주세요:\n\n{extracted_text}"
+        if language == 'korean'
+        else f"Based on the following text, generate 3 thoughtful questions for deeper understanding:\n\n{extracted_text}"
+    )
+    messages = [HumanMessage(content=prompt)]
+    try:
+        response = llm(messages)
+        questions = [q.strip() for q in response.content.strip().split('\n') if q.strip()]
+        return questions
+    except openai.error.OpenAIError as e:
+        st.error(f"질문 생성 중 오류가 발생했습니다: {e}")
+        return []
+
+# GPT가 제안 사항 생성 함수
+def generate_gpt_suggestions(extracted_text, language):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=openai_api_key)
+    prompt = (
+        f"다음 텍스트에 기반하여 개선할 점과 주요 통찰을 제안해주세요:\n\n{extracted_text}"
+        if language == 'korean'
+        else f"Based on the following text, provide suggestions for improvement and key insights:\n\n{extracted_text}"
+    )
+    messages = [HumanMessage(content=prompt)]
+    try:
+        response = llm(messages)
+        return response.content.strip()
+    except openai.error.OpenAIError as e:
+        st.error(f"제안 생성 중 오류가 발생했습니다: {e}")
+        return ""
+
 # 텍스트 추출 및 처리 함수
 def process_text(extracted_text):
     if not extracted_text.strip():
@@ -96,6 +133,14 @@ def process_text(extracted_text):
     language_code = detect_language(extracted_text)
     st.session_state.lang = 'korean' if language_code == 'ko' else 'english'
     st.write(f"### 감지된 언어: {'한국어' if language_code == 'ko' else '영어'}")
+
+    with st.spinner("GPT가 질문을 생성 중입니다..."):
+        questions = generate_gpt_questions(extracted_text, st.session_state.lang)
+        st.session_state.gpt_questions = questions
+
+    with st.spinner("GPT가 제안 사항을 생성 중입니다..."):
+        suggestions = generate_gpt_suggestions(extracted_text, st.session_state.lang)
+        st.session_state.gpt_suggestions = suggestions
 
 # 파일 업로드 처리
 uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)", type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp'])
@@ -129,7 +174,7 @@ if uploaded_file:
                 doc = pyhwp.HwpDocument(tmp_path)
                 extracted_text = doc.body_text or ""
             except Exception as e:
-                st.error(f"HWP 처리 중 오류: {e}")
+                st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
         else:
             st.error("HWP 파일 처리를 지원하지 않습니다. pyhwp 라이브러리가 설치되어 있지 않습니다.")
     else:
@@ -154,8 +199,20 @@ def chat_interface():
             add_chat_message("assistant", response)
             st.write(f"**GPT**: {response}")
 
+    # GPT가 생성한 질문 표시
+    if st.session_state.gpt_questions:
+        st.write("## GPT가 생성한 질문")
+        for idx, question in enumerate(st.session_state.gpt_questions):
+            st.write(f"{idx + 1}. {question}")
+
+    # GPT가 생성한 제안 사항 표시
+    if st.session_state.gpt_suggestions:
+        st.write("## GPT의 제안 사항 및 통찰")
+        st.write(st.session_state.gpt_suggestions)
+
     # ChatGPT 사용에 대한 경고 메시지 표시
     st.write("⚠️ ChatGPT는 실수할 수 있으며, 정보가 항상 정확하지 않을 수 있습니다. 중요한 내용을 확인하세요.")
 
 chat_interface()
+
 
