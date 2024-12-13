@@ -24,9 +24,15 @@ try:
 except ModuleNotFoundError:
     HWP_SUPPORTED = False
 
-# 초기 설정
-nltk.download('punkt')
-nltk.download('stopwords')
+# NLTK 데이터 다운로드 설정
+NLTK_DATA_DIR = os.path.expanduser("~/nltk_data")
+os.makedirs(NLTK_DATA_DIR, exist_ok=True)
+nltk.data.path.append(NLTK_DATA_DIR)
+try:
+    nltk.download('punkt', download_dir=NLTK_DATA_DIR)
+    nltk.download('stopwords', download_dir=NLTK_DATA_DIR)
+except FileExistsError:
+    pass  # 이미 다운로드된 경우 무시
 
 # 환경 변수 로드
 dotenv_path = Path('.env')
@@ -49,21 +55,7 @@ if 'extracted_text' not in st.session_state:
 
 st.title("\ud83d\udcda Study Helper with File Processing and Chat")
 st.write("---")
-
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
-
-# 사이드바: 기록 보관 기능
-st.sidebar.write("## 기록 보관")
-if st.session_state.chat_history:
-    chat_text = "\n".join([f"{msg['role']}: {msg['message']}" for msg in st.session_state.chat_history])
-    st.sidebar.download_button(
-        "채팅 기록 다운로드",
-        data=chat_text.encode('utf-8'),
-        file_name="chat_history.txt",
-        mime="text/plain"
-    )
-else:
-    st.sidebar.write("채팅 기록이 없습니다.")
 
 # 채팅 기록 추가 함수
 def add_chat_message(role, message):
@@ -92,46 +84,7 @@ def ask_gpt_question(question, language):
         st.error(f"API 호출 중 오류가 발생했습니다: {e}")
         return ""
 
-# 텍스트 추출 함수
-def pdf_to_text(file_data):
-    try:
-        with pdfplumber.open(BytesIO(file_data.getvalue())) as pdf:
-            return "\n".join([page.extract_text() or "" for page in pdf.pages])
-    except Exception as e:
-        st.error(f"PDF에서 텍스트 추출 중 오류: {e}")
-        return ""
-
-def pptx_to_text(file_data):
-    try:
-        prs = Presentation(BytesIO(file_data.getvalue()))
-        return "\n".join([shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")])
-    except Exception as e:
-        st.error(f"PPTX에서 텍스트 추출 중 오류: {e}")
-        return ""
-
-def image_to_text(file_data):
-    try:
-        image = Image.open(file_data)
-        return pytesseract.image_to_string(image, lang='kor+eng')
-    except Exception as e:
-        st.error(f"이미지에서 텍스트 추출 중 오류: {e}")
-        return ""
-
-def hwp_to_text(file_data):
-    if not HWP_SUPPORTED:
-        st.error("HWP 파일 처리를 지원하지 않습니다. pyhwp 라이브러리가 설치되어 있지 않습니다.")
-        return ""
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
-            tmp.write(file_data.getvalue())
-            tmp_path = tmp.name
-        doc = pyhwp.HwpDocument(tmp_path)
-        return doc.body_text or ""
-    except Exception as e:
-        st.error(f"HWP 처리 중 오류: {e}")
-        return ""
-
-# 텍스트 처리 함수
+# 텍스트 추출 및 처리 함수
 def process_text(extracted_text):
     if not extracted_text.strip():
         st.error("파일에서 텍스트를 추출할 수 없습니다.")
@@ -145,22 +98,58 @@ def process_text(extracted_text):
 # 파일 업로드 처리
 uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)", type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp'])
 if uploaded_file:
+    extracted_text = ""
     file_type = uploaded_file.type
     if file_type == 'application/pdf':
-        extracted_text = pdf_to_text(uploaded_file)
+        try:
+            with pdfplumber.open(BytesIO(uploaded_file.getvalue())) as pdf:
+                extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        except Exception as e:
+            st.error(f"PDF에서 텍스트 추출 중 오류: {e}")
     elif file_type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
-        extracted_text = pptx_to_text(uploaded_file)
+        try:
+            prs = Presentation(BytesIO(uploaded_file.getvalue()))
+            extracted_text = "\n".join([shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")])
+        except Exception as e:
+            st.error(f"PPTX에서 텍스트 추출 중 오류: {e}")
     elif file_type.startswith('image/'):
-        extracted_text = image_to_text(uploaded_file)
+        try:
+            image = Image.open(uploaded_file)
+            extracted_text = pytesseract.image_to_string(image, lang='kor+eng')
+        except Exception as e:
+            st.error(f"이미지에서 텍스트 추출 중 오류: {e}")
     elif file_type == 'application/haansoft-hwp':
-        extracted_text = hwp_to_text(uploaded_file)
+        if HWP_SUPPORTED:
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    tmp_path = tmp.name
+                doc = pyhwp.HwpDocument(tmp_path)
+                extracted_text = doc.body_text or ""
+            except Exception as e:
+                st.error(f"HWP 처리 중 오류: {e}")
+        else:
+            st.error("HWP 파일 처리를 지원하지 않습니다. pyhwp 라이브러리가 설치되어 있지 않습니다.")
     else:
         st.error("지원하지 않는 파일 형식입니다.")
-        extracted_text = ""
 
     if extracted_text:
         process_text(extracted_text)
 
 # 채팅 인터페이스
-chat_interface()
+def chat_interface():
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.write(f"**사용자**: {chat['message']}")
+        else:
+            st.write(f"**GPT**: {chat['message']}")
 
+    user_input = st.text_input("질문을 입력하세요:")
+    if user_input:
+        add_chat_message("user", user_input)
+        with st.spinner("GPT가 응답 중입니다..."):
+            response = ask_gpt_question(user_input, st.session_state.lang)
+            add_chat_message("assistant", response)
+            st.write(f"**GPT**: {response}")
+
+chat_interface()
