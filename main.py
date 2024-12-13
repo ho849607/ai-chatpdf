@@ -28,7 +28,7 @@ except ModuleNotFoundError:
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# 한글 불용어 예시 (추가 가능)
+# 한글 불용어 예시 (필요시 추가 가능)
 korean_stopwords = [
     '이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에',
     '의', '은', '는', '가', '와', '과', '하다', '있다', '되다', '이다',
@@ -48,6 +48,8 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'extracted_text' not in st.session_state:
     st.session_state.extracted_text = ""
+if 'last_user_input' not in st.session_state:
+    st.session_state.last_user_input = ""
 
 # API 키 설정
 if not openai_api_key:
@@ -75,7 +77,6 @@ if st.session_state.chat_history:
 else:
     st.sidebar.write("채팅 기록이 없습니다.")
 
-# 함수 정의
 def add_chat_message(role, message):
     """채팅 기록에 메시지를 추가하는 함수"""
     st.session_state.chat_history.append({"role": role, "message": message})
@@ -113,6 +114,31 @@ def ask_gpt_question(question, language):
     except APIError as e:
         st.error(f"API 호출 중 오류가 발생했습니다: {e}")
         return "오류 발생: 작업을 완료하지 못했습니다."
+
+def suggest_improvements(user_input, reference_text, language):
+    """사용자의 응답을 분석하고 개선점을 자동으로 제안하는 함수"""
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=openai_api_key)
+    if language == 'korean':
+        prompt = (
+            f"다음은 참고 텍스트입니다:\n{reference_text}\n\n"
+            f"사용자의 응답: {user_input}\n\n"
+            f"참고 텍스트를 기준으로 사용자의 응답에 대한 피드백을 제공해주세요. "
+            f"응답의 맞는 부분과 잘못된 부분을 지적하고, 어떻게 하면 더 정확하거나 개선된 응답을 할 수 있을지 제안해 주세요."
+        )
+    else:
+        prompt = (
+            f"Here is the reference text:\n{reference_text}\n\n"
+            f"User's answer: {user_input}\n\n"
+            f"Based on the reference text, please provide feedback on the user's answer. "
+            f"Point out what is correct and incorrect, and suggest how to improve or refine the answer."
+        )
+
+    messages = [HumanMessage(content=prompt)]
+    try:
+        response = llm(messages)
+        return response.content.strip()
+    except:
+        return "개선 제안을 제공할 수 없습니다."
 
 def pdf_to_text(file_data):
     """PDF 파일에서 텍스트 추출"""
@@ -218,6 +244,7 @@ def chat_interface():
 
     # 사용자 메시지 처리
     if user_chat_input:
+        st.session_state.last_user_input = user_chat_input
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
             st.write(user_chat_input)
@@ -228,6 +255,17 @@ def chat_interface():
             add_chat_message("assistant", gpt_response)
             with st.chat_message("assistant"):
                 st.write(gpt_response)
+
+        # 사용자의 응답에 대한 개선점 및 추천사항 자동 제안
+        if st.session_state.extracted_text.strip():
+            improvement_suggestions = suggest_improvements(
+                st.session_state.last_user_input,
+                st.session_state.extracted_text,
+                st.session_state.lang
+            )
+            with st.chat_message("assistant"):
+                st.write("### 개선 사항 및 추천")
+                st.write(improvement_suggestions)
 
 # 파일 업로드 처리
 uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP, HWPX 지원)",
