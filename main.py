@@ -14,7 +14,7 @@ from PIL import Image
 import pytesseract
 import tempfile
 import hashlib
-from openai.error import RateLimitError, APIError
+import openai  # openai 임포트
 import time
 
 # pyhwp 모듈 임포트 시도
@@ -85,7 +85,7 @@ def detect_language(text):
     """텍스트 언어 감지 함수"""
     if not text.strip():
         return "en"
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=openai_api_key)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=st.session_state["api_key"])
     prompt = f"다음 텍스트의 언어를 ISO 639-1 코드로 감지해 주세요 (예: 'en'은 영어, 'ko'는 한국어):\n\n{text[:500]}"
     messages = [HumanMessage(content=prompt)]
     try:
@@ -98,7 +98,7 @@ def detect_language(text):
 
 def ask_gpt_question(question, language):
     """GPT에게 질문하고 답변을 반환하는 함수"""
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=openai_api_key)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=st.session_state["api_key"])
     if language == 'korean':
         prompt = f"다음 질문에 답변: {question}"
     else:
@@ -107,17 +107,17 @@ def ask_gpt_question(question, language):
     try:
         response = llm(messages)
         return response.content.strip()
-    except RateLimitError:
+    except openai.error.RateLimitError:
         st.error("API 호출이 제한되었습니다. 잠시 후 다시 시도하세요.")
         time.sleep(10)
         return ""
-    except APIError as e:
+    except openai.error.APIError as e:
         st.error(f"API 호출 중 오류가 발생했습니다: {e}")
         return "오류 발생: 작업을 완료하지 못했습니다."
 
 def suggest_improvements(user_input, reference_text, language):
     """사용자의 응답을 분석하고 개선점을 자동으로 제안하는 함수"""
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=openai_api_key)
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5, openai_api_key=st.session_state["api_key"])
     if language == 'korean':
         prompt = (
             f"다음은 참고 텍스트입니다:\n{reference_text}\n\n"
@@ -187,7 +187,6 @@ def hwp_or_hwpx_to_text(file_data, extension):
         st.error("HWPX 파일은 현재 지원되지 않습니다.")
         return ""
 
-    # HWP 파일 처리
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
             tmp.write(file_data.getvalue())
@@ -215,7 +214,6 @@ def process_text(extracted_text):
             lang = 'english'
             language_name = '영어'
         else:
-            # 한국어 또는 영어가 아닌 경우 기본 영어로 진행
             lang = 'english'
             language_name = f'감지된 언어 코드: {language_code}, 기본 영어 사용'
         
