@@ -10,8 +10,6 @@ import openai
 from pathlib import Path
 import hashlib
 import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
 from PIL import Image
 import pytesseract
 import tempfile
@@ -53,7 +51,7 @@ if 'chat_history' not in st.session_state:
 if 'extracted_text' not in st.session_state:
     st.session_state.extracted_text = ""
 
-st.title("\ud83d\udcda Study Helper with File Processing and Chat")
+st.title("📚 Study Helper with File Processing and Chat")
 st.write("---")
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
