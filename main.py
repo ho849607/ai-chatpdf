@@ -244,7 +244,7 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)", type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp'])
+uploaded_file = st.file_uploader("파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG 지원)", type=['pdf', 'pptx', 'png', 'jpg', 'jpeg'])
 
 chat_interface()
 
