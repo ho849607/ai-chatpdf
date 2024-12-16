@@ -15,4 +15,4 @@ pytesseract
 streamlit
 tiktoken
 pyhwp
-tesseract
+pytesseract
