@@ -1,13 +1,8 @@
-import os
 import streamlit as st
-from io import BytesIO
+import os
 from dotenv import load_dotenv
-import pdfplumber
-from pptx import Presentation  # PPTX 파일 처리를 위한 라이브러리
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage
-import openai
 from pathlib import Path
+import openai
 import hashlib
 import nltk
 from nltk.tokenize import word_tokenize
@@ -16,6 +11,11 @@ from PIL import Image
 import pytesseract
 import subprocess  # hwp 처리용
 import tempfile
+import pdfplumber
+from pptx import Presentation  # PPTX 파일 처리를 위한 라이브러리
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
+from io import BytesIO
 
 # 초기 설정
 nltk.download('punkt')
