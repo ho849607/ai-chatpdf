@@ -2,7 +2,6 @@ import os
 import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
-import tesseract
 import pdfplumber
 from pptx import Presentation  # PPTX 파일 처리를 위한 라이브러리
 from langchain.chat_models import ChatOpenAI
