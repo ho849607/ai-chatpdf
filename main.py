@@ -17,6 +17,7 @@ from PIL import Image
 import pytesseract
 import subprocess
 import tempfile
+import docx  # python-docx
 
 ############################
 # 초기 환경 설정
@@ -184,6 +185,68 @@ def hwp_to_text(upload_file):
         st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
         return ""
 
+def doc_docx_to_text(upload_file, file_extension):
+    """
+    MS Word (doc, docx) 파일에서 텍스트 추출.
+    - .docx: python-docx 이용
+    - .doc: unoconv가 설치되어 있다면 .docx로 변환 후 추출
+    """
+    if file_extension == ".docx":
+        # 바로 docx 처리
+        try:
+            doc = docx.Document(BytesIO(upload_file.getvalue()))
+            full_text = []
+            for para in doc.paragraphs:
+                full_text.append(para.text)
+            return "\n".join(full_text)
+        except Exception as e:
+            st.error(f"DOCX 처리 중 오류가 발생했습니다: {e}")
+            return ""
+
+    else:
+        # .doc 파일 처리
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.doc') as tmp:
+                tmp.write(upload_file.getvalue())
+                tmp_path = tmp.name
+
+            # unoconv를 이용해 doc -> docx 변환
+            # 예: unoconv -f docx myfile.doc
+            converted_path = tmp_path + ".docx"
+            command = ["unoconv", "-f", "docx", tmp_path]
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode != 0:
+                st.error("unoconv를 이용해 .doc -> .docx 변환에 실패했습니다.")
+                return ""
+
+            # 변환된 docx 불러오기
+            with open(converted_path, "rb") as f:
+                converted_bytes = f.read()
+
+            # docx 처리
+            try:
+                doc = docx.Document(BytesIO(converted_bytes))
+                full_text = []
+                for para in doc.paragraphs:
+                    full_text.append(para.text)
+                return "\n".join(full_text)
+            except Exception as e:
+                st.error(f"DOC -> DOCX 변환 후 처리 중 오류가 발생했습니다: {e}")
+                return ""
+            finally:
+                # 임시 파일 정리
+                try:
+                    os.remove(converted_path)
+                except:
+                    pass
+
+        except FileNotFoundError:
+            st.error("unoconv 또는 LibreOffice가 설치되어 있지 않아 .doc 파일을 처리할 수 없습니다.")
+            return ""
+        except Exception as e:
+            st.error(f"DOC 처리 중 오류가 발생했습니다: {e}")
+            return ""
+
 def detect_language(text):
     """GPT-4로 언어 감지"""
     llm = ChatOpenAI(
@@ -300,10 +363,10 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-# 파일 업로더 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)
+# 파일 업로더 (MS Word도 추가: doc, docx)
 uploaded_file = st.file_uploader(
-    "파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)",
-    type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp']
+    "파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP, DOC, DOCX 지원)",
+    type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp', 'doc', 'docx']
 )
 
 # ChatGPT 대화 인터페이스
@@ -338,6 +401,8 @@ if uploaded_file is not None:
             extracted_text = image_to_text(uploaded_file)  # OCR 기능
         elif extension == ".hwp":
             extracted_text = hwp_to_text(uploaded_file)
+        elif extension in [".doc", ".docx"]:
+            extracted_text = doc_docx_to_text(uploaded_file, extension)
         else:
             st.error("지원하지 않는 파일 형식입니다.")
             extracted_text = ""
