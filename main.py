@@ -1,192 +1,271 @@
 import os
 import streamlit as st
 from io import BytesIO
-from dotenv import load_dotenv
-import pdfplumber
-# pptx(=python-pptx) 모듈이 필요합니다.
-from pptx import Presentation
-
+import hashlib
+import openai
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage
 from langchain.callbacks import StreamingStdOutCallbackHandler
-import openai
-from pathlib import Path
-import hashlib
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
+
+# 문서 처리 라이브러리들
+import pdfplumber  # PDF
+from pptx import Presentation  # PPTX
+import docx  # DOCX (python-docx)
+import pytesseract  # 이미지 OCR
 from PIL import Image
-
-# pytesseract 모듈이 필요합니다.
-import pytesseract
-
-import subprocess
 import tempfile
+import subprocess
 
-############################
-# 초기 환경 설정
-############################
-
-# Tesseract 경로 (사용 환경에 맞춰 수정)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Users\username\AppData\Local\Tesseract-OCR\tesseract.exe"
-
-# NLTK 리소스 다운로드
-nltk.download('punkt')
-nltk.download('stopwords')
-
-# 한국어 불용어 리스트 (필요 시 수정/추가)
-korean_stopwords = [
-    '이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에',
-    '의', '은', '는', '가', '와', '과', '하다', '있다', '되다', '이다',
-    '으로', '에서', '까지', '부터', '만', '그리고', '하지만', '그러나'
-]
-
-# .env 파일에서 API 키 읽기
-dotenv_path = Path('.env')
-load_dotenv(dotenv_path=dotenv_path)
-
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    openai_api_key = st.sidebar.text_input("OpenAI API 키를 입력하세요.", type="password")
-    if not openai_api_key:
+#######################################
+# OpenAI API 키 설정
+#######################################
+openai.api_key = os.getenv("OPENAI_API_KEY")
+if not openai.api_key:
+    openai.api_key = st.sidebar.text_input("OpenAI API 키를 입력하세요.", type="password")
+    if not openai.api_key:
         st.error("OpenAI API 키가 설정되지 않았습니다.")
         st.stop()
 
-openai.api_key = openai_api_key
+#######################################
+# 파일별 텍스트 추출 함수
+#######################################
 
-############################
-# Streamlit UI
-############################
-
-st.title("📚 Study Helper (GPT-4)")
-st.write("---")
-
-if 'lang' not in st.session_state:
-    st.session_state.lang = 'english'
-
-st.warning("저작물을 불법 복제·게시하면 책임지지 않으며, 저작권법에 유의해주세요.")
-
-############################
-# 주요 함수
-############################
-
-def add_chat_message(role, message):
-    """채팅 메시지를 세션에 기록"""
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    st.session_state.chat_history.append({"role": role, "message": message})
-
-def ask_gpt_question(question, language):
-    """ChatOpenAI(GPT-4)로 질문"""
-    llm = ChatOpenAI(
-        model_name="gpt-4", 
-        temperature=0, 
-        streaming=True,
-        callbacks=[StreamingStdOutCallbackHandler()]
-    )
-    if language == 'korean':
-        prompt = f"다음 질문에 답변해 주세요:\n\n{question}"
-    else:
-        prompt = question
-
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    return response.content
-
-def chat_interface():
-    """ChatGPT처럼 대화할 수 있는 인터페이스"""
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-
-    # 기존 채팅 기록 표시
-    for chat in st.session_state.chat_history:
-        if chat["role"] == "user":
-            with st.chat_message("user"):
-                st.write(chat["message"])
-        else:
-            with st.chat_message("assistant"):
-                st.write(chat["message"])
-
-    # 대화 입력창
-    if st.session_state.lang == 'korean':
-        st.write("## ChatGPT와의 채팅 (GPT-4)")
-        user_chat_input = st.chat_input("메시지를 입력하세요:")
-    else:
-        st.write("## Chat with ChatGPT (GPT-4)")
-        user_chat_input = st.chat_input("Enter your message:")
-
-    # 사용자가 입력하면 GPT 응답
-    if user_chat_input:
-        add_chat_message("user", user_chat_input)
-        with st.chat_message("user"):
-            st.write(user_chat_input)
-
-        with st.spinner("GPT가 응답 중입니다..."):
-            gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
-            add_chat_message("assistant", gpt_response)
-            with st.chat_message("assistant"):
-                st.write(gpt_response)
-
-def pdf_to_text(upload_file):
-    """PDF에서 텍스트 추출"""
+def pdf_to_text(file_bytes: bytes) -> str:
+    """PDF → 텍스트"""
+    text = ""
     try:
-        with pdfplumber.open(BytesIO(upload_file.getvalue())) as pdf:
-            pages = []
-            for i, page in enumerate(pdf.pages):
-                text = page.extract_text()
-                if text:
-                    pages.append(f"<PAGE{i+1}>\n{text}")
-            return "\n".join(pages)
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
     except Exception as e:
-        st.error(f"PDF에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
-        return ""
+        st.error(f"PDF 텍스트 추출 중 오류: {e}")
+    return text
 
-def pptx_to_text(upload_file):
-    """PPTX에서 텍스트 추출"""
+def pptx_to_text(file_bytes: bytes) -> str:
+    """PPTX → 텍스트"""
+    text_runs = []
     try:
-        prs = Presentation(BytesIO(upload_file.getvalue()))
-        text_runs = []
+        prs = Presentation(BytesIO(file_bytes))
         for slide in prs.slides:
             for shape in slide.shapes:
                 if hasattr(shape, "text"):
                     text_runs.append(shape.text)
-        return "\n".join(text_runs)
     except Exception as e:
-        st.error(f"PPTX에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
-        return ""
+        st.error(f"PPTX 텍스트 추출 중 오류: {e}")
+    return "\n".join(text_runs)
 
-def image_to_text(uploaded_image):
-    """이미지(캡처본 등)에서 텍스트(OCR) 추출"""
+def hwp_to_text(file_bytes: bytes) -> str:
+    """HWP → 텍스트 (hwp5txt 필요)"""
+    text = ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".hwp") as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
     try:
-        image = Image.open(uploaded_image)
-        # Tesseract 설치 및 경로 확인
-        if not os.path.exists(pytesseract.pytesseract.tesseract_cmd):
-            st.error("Tesseract가 설치되어 있지 않거나 경로가 올바르지 않습니다.")
-            return ""
-        # 'kor+eng'로 한국어+영어 혼합 인식 가능
-        text = pytesseract.image_to_string(image, lang='kor+eng')
-        return text
+        result = subprocess.run(["hwp5txt", tmp_path], capture_output=True, text=True)
+        if result.returncode == 0:
+            text = result.stdout
+        else:
+            st.error("HWP에서 텍스트를 추출할 수 없습니다. (hwp5txt 설치 확인)")
+    except FileNotFoundError:
+        st.error("hwp5txt 실행 파일을 찾을 수 없습니다. 설치 후 PATH 환경변수를 확인하세요.")
     except Exception as e:
-        st.error(f'이미지에서 텍스트를 추출 중 오류가 발생했습니다: {e}')
+        st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
+    finally:
+        try:
+            os.remove(tmp_path)
+        except:
+            pass
+    return text
+
+def docx_to_text(file_bytes: bytes) -> str:
+    """DOCX → 텍스트 (python-docx)"""
+    try:
+        document = docx.Document(BytesIO(file_bytes))
+        lines = [para.text for para in document.paragraphs]
+        return "\n".join(lines)
+    except Exception as e:
+        st.error(f"DOCX 처리 중 오류: {e}")
         return ""
 
-############################
-# 메인 로직 (예시)
-############################
+def doc_to_text(file_bytes: bytes) -> str:
+    """
+    DOC → DOCX 변환 후 텍스트 추출 (unoconv + LibreOffice 필요)
+    """
+    text = ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+    converted_path = tmp_path + ".docx"
+
+    try:
+        # unoconv를 이용해 DOC → DOCX 변환
+        command = ["unoconv", "-f", "docx", tmp_path]
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            st.error("unoconv로 .doc -> .docx 변환 실패")
+            return ""
+        # 변환된 파일 열기
+        with open(converted_path, "rb") as f:
+            converted_bytes = f.read()
+        text = docx_to_text(converted_bytes)
+    except FileNotFoundError:
+        st.error("unoconv 또는 LibreOffice가 설치되어 있지 않아 .doc 파일을 처리할 수 없습니다.")
+    except Exception as e:
+        st.error(f"DOC 처리 중 오류: {e}")
+    finally:
+        # 임시 파일 정리
+        try:
+            os.remove(tmp_path)
+        except:
+            pass
+        try:
+            os.remove(converted_path)
+        except:
+            pass
+    return text
+
+def image_to_text(file_bytes: bytes) -> str:
+    """이미지(OCR) → 텍스트 (pytesseract + Tesseract)"""
+    text = ""
+    # Tesseract 실행 파일 경로 맞게 설정
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Users\username\AppData\Local\Tesseract-OCR\tesseract.exe"
+
+    try:
+        with Image.open(BytesIO(file_bytes)) as img:
+            text = pytesseract.image_to_string(img, lang="kor+eng")  # 한국어+영어
+    except Exception as e:
+        st.error(f"이미지 처리 중 오류: {e}")
+    return text
+
+#######################################
+# GPT 요약/질문 함수
+#######################################
+
+def gpt_summarize(text: str, lang: str) -> str:
+    """GPT로 핵심 내용 요약"""
+    llm = ChatOpenAI(model_name="gpt-4", temperature=0, streaming=True,
+                     callbacks=[StreamingStdOutCallbackHandler()])
+    if lang == "korean":
+        prompt = f"다음 텍스트를 간결하고 핵심 위주로 요약해 줘:\n\n{text}"
+    else:
+        prompt = f"Summarize the following text focusing on key points:\n\n{text}"
+    response = llm([HumanMessage(content=prompt)])
+    return response.content
+
+def gpt_generate_questions(text: str, lang: str) -> str:
+    """사용자가 놓칠 수 있는 관점을 질문으로 제시"""
+    llm = ChatOpenAI(model_name="gpt-4", temperature=0, streaming=True,
+                     callbacks=[StreamingStdOutCallbackHandler()])
+    if lang == "korean":
+        prompt = (
+            f"다음 내용을 기반으로, 사용자가 놓칠 수 있는 핵심 관점이나 "
+            f"추가 논의를 유발할 수 있는 질문 3~5개를 제시해줘:\n\n{text}"
+        )
+    else:
+        prompt = (
+            f"Based on the following content, generate 3-5 questions "
+            f"that highlight key perspectives or prompt deeper discussion:\n\n{text}"
+        )
+    response = llm([HumanMessage(content=prompt)])
+    return response.content
+
+#######################################
+# 간단한 언어 감지
+#######################################
+def detect_language(text: str) -> str:
+    # 실제론 langdetect나 GPT 호출을 써도 됩니다.
+    if any(ch in text for ch in ["은", "는", "이", "가", "을", "를", "하다", "한다"]):
+        return "korean"
+    return "english"
+
+#######################################
+# Streamlit 메인
+#######################################
 
 def main():
-    # 파일 업로더
-    uploaded_file = st.file_uploader("파일을 업로드해 주세요 (PDF, PPTX, PNG, JPG, JPEG 등)")
+    st.title("자동 파일 분석 + ChatGPT (GPT-4)")
+    st.write("---")
 
-    # ChatGPT 대화 인터페이스
-    chat_interface()
+    # 업로드: PDF, PPTX, PNG/JPG/JPEG, HWP, DOC, DOCX
+    uploaded_file = st.file_uploader(
+        "파일을 업로드하세요 (PDF, PPTX, 이미지, HWP, DOC, DOCX)",
+        type=["pdf","pptx","png","jpg","jpeg","hwp","doc","docx"]
+    )
 
     if uploaded_file:
-        filename = uploaded_file.name
-        st.write(f"업로드된 파일 이름: {filename}")
+        file_bytes = uploaded_file.getvalue()
+        file_name = uploaded_file.name
+        st.write(f"**업로드된 파일:** {file_name}")
 
-        # 여기서 pptx_to_text, image_to_text 등을 호출하여 텍스트를 추출하는 로직 추가 가능
-        # ...
+        # 확장자 구분
+        _, ext = os.path.splitext(file_name)
+        ext = ext.lower()
+
+        # 추출된 텍스트
+        extracted_text = ""
+
+        # 파일 종류별로 분기
+        if ext == ".pdf":
+            extracted_text = pdf_to_text(file_bytes)
+        elif ext == ".pptx":
+            extracted_text = pptx_to_text(file_bytes)
+        elif ext in [".png", ".jpg", ".jpeg"]:
+            extracted_text = image_to_text(file_bytes)
+        elif ext == ".hwp":
+            extracted_text = hwp_to_text(file_bytes)
+        elif ext == ".docx":
+            extracted_text = docx_to_text(file_bytes)
+        elif ext == ".doc":
+            extracted_text = doc_to_text(file_bytes)
+        else:
+            st.error("지원하지 않는 파일 형식입니다.")
+            return
+
+        if not extracted_text.strip():
+            st.error("파일에서 텍스트를 추출할 수 없습니다.")
+            return
+
+        # 언어 감지
+        lang = detect_language(extracted_text)
+
+        # GPT 요약
+        st.subheader("파일 자동 요약")
+        with st.spinner("GPT가 요약 중..."):
+            summary = gpt_summarize(extracted_text, lang)
+        st.write(summary)
+
+        # GPT가 추가 질문 생성
+        st.subheader("AI가 제안하는 추가 질문")
+        with st.spinner("GPT가 질문 생성 중..."):
+            questions = gpt_generate_questions(extracted_text, lang)
+        st.write(questions)
+
+        # 추가로 대화할 수 있는 인터페이스
+        st.write("---")
+        st.subheader("추가 대화")
+        st.write("내용에 대해 더 궁금하신 점이 있으면 질문해 보세요.")
+
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
+
+        user_input = st.text_input("질문 입력:")
+        if user_input:
+            st.session_state.chat_history.append({"role": "user", "content": user_input})
+
+            llm_chat = ChatOpenAI(model_name="gpt-4", temperature=0, streaming=True,
+                                  callbacks=[StreamingStdOutCallbackHandler()])
+            gpt_response = llm_chat([HumanMessage(content=user_input)]).content
+
+            st.session_state.chat_history.append({"role": "assistant", "content": gpt_response})
+
+        # 채팅 기록 표시
+        for msg in st.session_state.chat_history:
+            if msg["role"] == "user":
+                st.markdown(f"**[User]**: {msg['content']}")
+            else:
+                st.markdown(f"**[GPT]**: {msg['content']}")
 
 if __name__ == "__main__":
     main()
