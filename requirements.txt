@@ -10,7 +10,7 @@ pdfplumber
 pillow
 protobuf
 pyhwp
-python-docx          <-- docx 파일 처리를 위해 추가 (필요시)
+python-docx  # docx 파일 처리를 위해 추가 (필요시)
 python-dotenv
 python-pptx
 pytesseract
