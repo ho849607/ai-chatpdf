@@ -17,14 +17,10 @@ from PIL import Image
 import pytesseract
 import subprocess
 import tempfile
-from streamlit_extras.buy_me_a_coffee import button
 
 ############################
 # 초기 환경 설정
 ############################
-
-# Buy Me a Coffee 버튼 (예시)
-button(username="studyhelper", floating=False, width=300)
 
 # Tesseract 경로 (사용 환경에 맞춰 수정)
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\username\AppData\Local\Tesseract-OCR\tesseract.exe"
