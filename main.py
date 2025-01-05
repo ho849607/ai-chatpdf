@@ -22,7 +22,7 @@ import tempfile
 # 초기 환경 설정
 ############################
 
-# Tesseract 경로 (사용 환경에 맞춰 수정)
+# Tesseract 경로 (사용 환경에 맞춰 수정하세요)
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\username\AppData\Local\Tesseract-OCR\tesseract.exe"
 
 # NLTK 리소스 다운로드
@@ -300,7 +300,7 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-# 파일 업로더
+# 파일 업로더 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)
 uploaded_file = st.file_uploader(
     "파일을 올려주세요 (PDF, PPTX, PNG, JPG, JPEG, HWP 지원)",
     type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp']
