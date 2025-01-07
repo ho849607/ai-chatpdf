@@ -50,7 +50,7 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
-# ------------------------ 제목을 studyhelper로 변경 ------------------------
+# ------------------------ 제목: studyhelper ------------------------
 st.title("studyhelper")
 st.write("---")
 
@@ -59,6 +59,46 @@ if 'lang' not in st.session_state:
 
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
+###############################################################################
+# 1. 긴 텍스트를 여러 청크로 나누어 요약하기 위한 헬퍼 함수
+###############################################################################
+def chunk_text(text, chunk_size=3000):
+    """
+    토큰 수 대신 '문자 길이' 기준으로 간단히 청크를 나누는 예시입니다.
+    실제로는 tiktoken 등을 사용해 토큰 단위로 나누는 것이 더 정확합니다.
+    """
+    chunks = []
+    start = 0
+    length = len(text)
+    while start < length:
+        end = min(start + chunk_size, length)
+        chunks.append(text[start:end])
+        start = end
+    return chunks
+
+def summarize_text_in_chunks(text, language, chunk_size=3000):
+    """
+    긴 텍스트를 여러 청크로 나누어 각 청크를 요약 -> 부분 요약들을 합쳐 최종 요약.
+    """
+    # 1) 텍스트를 여러 청크로 나눈다.
+    text_chunks = chunk_text(text, chunk_size=chunk_size)
+
+    # 2) 각 청크에 대해 부분 요약
+    partial_summaries = []
+    for i, chunk in enumerate(text_chunks):
+        st.write(f"### 청크 {i+1} 요약 중...")
+        summary_chunk = summarize_text(chunk, language)  # 기존 summarize_text 함수 사용
+        partial_summaries.append(summary_chunk)
+
+    # 3) 부분 요약들을 합친 뒤, 그 자체를 다시 요약(선택 사항)
+    joined_summary = "\n".join(partial_summaries)
+    st.write("### 부분 요약들을 합쳐 최종 요약 중...")
+    final_summary = summarize_text(joined_summary, language)
+    return final_summary
+
+###############################################################################
+# 2. GPT와의 채팅, 파일 업로드, 텍스트 추출 등 기존 기능
+###############################################################################
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -304,6 +344,7 @@ uploaded_file = st.file_uploader(
     type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp', 'doc', 'docx']
 )
 
+# GPT-4와의 채팅
 chat_interface()
 
 if uploaded_file is not None:
@@ -324,6 +365,7 @@ if uploaded_file is not None:
         st.session_state.processed = False
 
     if not st.session_state.processed:
+        # 파일 유형별로 텍스트 추출
         if extension == ".pdf":
             extracted_text = pdf_to_text(uploaded_file)
         elif extension == ".pptx":
@@ -333,9 +375,9 @@ if uploaded_file is not None:
         elif extension == ".hwp":
             extracted_text = hwp_to_text(uploaded_file)
         elif extension == ".docx":
-            extracted_text = docx_to_text(uploaded_file)  # docx2txt가 없으면 "" 반환
+            extracted_text = docx_to_text(uploaded_file)
         elif extension == ".doc":
-            extracted_text = doc_to_text(uploaded_file)   # antiword 필요
+            extracted_text = doc_to_text(uploaded_file)
         else:
             st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, DOC, DOCX만 업로드하세요.")
             extracted_text = ""
@@ -361,8 +403,10 @@ if uploaded_file is not None:
             st.session_state.lang = lang
             st.session_state.extracted_text = extracted_text
 
+            # ---------------------- 부분 요약 -> 최종 요약 ----------------------
             with st.spinner("요약 생성 중..."):
-                summary = summarize_text(extracted_text, lang)
+                # 기존 summarize_text 대신, summarize_text_in_chunks로 변경
+                summary = summarize_text_in_chunks(extracted_text, lang, chunk_size=3000)
                 st.session_state.summary = summary
 
             with st.spinner("핵심 단어 추출 중..."):
@@ -380,6 +424,7 @@ if uploaded_file is not None:
             st.session_state.processed = True
 
     if st.session_state.get("processed", False):
+        # 결과 표시
         if 'summary' in st.session_state and st.session_state.summary.strip():
             st.write("## 요약 결과")
             st.write(st.session_state.summary)
