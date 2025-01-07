@@ -16,4 +16,4 @@ python-pptx
 pytesseract
 streamlit
 tiktoken
-
+paddleocr
