@@ -17,15 +17,9 @@ from PIL import Image
 import pytesseract
 import subprocess
 import tempfile
-from streamlit_extras.buy_me_a_coffee import button
+import docx2txt  # docx 처리 라이브러리 (pip install docx2txt)
 
-# DOCX 처리 라이브러리 (설치 필요: pip install docx2txt)
-import docx2txt
-
-# Buy Me a Coffee 버튼
-button(username="studyhelper", floating=False, width=300)
-
-# Tesseract 경로(실행 환경에 맞게 수정 필요)
+# Tesseract 경로 (실행 환경에 맞게 수정 필요)
 pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 
 # NLTK 리소스 다운로드
@@ -173,7 +167,7 @@ def hwp_to_text(upload_file):
             st.error("HWP에서 텍스트를 추출할 수 없습니다. hwp5txt 툴이 설치되어 있는지 확인해주세요.")
             return ""
     except FileNotFoundError:
-        st.error("hwp5txt 명령어를 찾을 수 없습니다. hwp5txt가 설치되어 PATH에 포함되어 있는지 확인해주세요.")
+        st.error("hwp5txt 명령어를 찾을 수 없습니다. hwp5txt가 제대로 설치되어 PATH에 포함되어 있는지 확인해주세요.")
         return ""
     except Exception as e:
         st.error(f"HWP 처리 중 오류가 발생했습니다: {e}")
@@ -283,7 +277,52 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     response = llm(messages)
     return response.content.strip()
 
-# ------------------ 퀴즈 출제 기능은 제거 ------------------
+# 자동 검색 + 설명: 찾은 문맥을 LLM에 전달해 추가 정보를 요약해 주는 함수
+def search_and_auto_explain(text, search_query, language='english'):
+    """사용자가 입력한 키워드로 텍스트를 검색하고,
+       해당 문맥을 GPT에 전달하여 요약/설명을 생성해주는 기능"""
+    # 키워드 포함 문장(혹은 라인) 검색
+    results = []
+    for line in text.split('\n'):
+        if search_query.lower() in line.lower():
+            results.append(line.strip())
+
+    # 결과가 없다면 바로 반환
+    if not results:
+        return None, None
+
+    # 검색된 문맥을 일정 길이로 묶어서 GPT에 전달 (라인이 많을 경우 대비)
+    # 여기서는 간단히 전부 합쳐서 전달하지만, 필요하다면 토큰 조절/분할 로직 사용 가능
+    matched_text = "\n".join(results)
+
+    # GPT에게 추가 설명/요약 요청
+    llm = ChatOpenAI(
+        model_name="gpt-4",
+        temperature=0,
+        streaming=True,
+        callbacks=[StreamingStdOutCallbackHandler()]
+    )
+
+    if language == 'korean':
+        prompt = f"""다음 텍스트는 사용자가 '{search_query}'를 포함하는 문맥입니다.
+이 문맥에 대해 간단한 요약 또는 추가 설명을 해주세요.
+
+문맥:
+{matched_text}
+"""
+    else:
+        prompt = f"""The following text contains the search term '{search_query}'.
+Please provide a brief summary or explanation about this content.
+
+Matched context:
+{matched_text}
+"""
+
+    messages = [HumanMessage(content=prompt)]
+    response = llm(messages)
+    explanation = response.content.strip()
+
+    return results, explanation
 
 def generate_questions_for_user(text, language):
     """사용자가 더 깊이 생각할 수 있는 3개 질문 생성"""
@@ -403,8 +442,6 @@ if uploaded_file is not None:
                 term_info = extract_and_search_terms(summary, extracted_text, language=lang)
                 st.session_state.term_info = term_info
 
-            # 퀴즈 생성 기능 제외
-
             # GPT가 사용자에게 질문
             with st.spinner("GPT가 질문을 생성 중..."):
                 gpt_questions = generate_questions_for_user(extracted_text, lang)
@@ -439,28 +476,34 @@ if uploaded_file is not None:
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
-# 키워드 검색 기능
+# ----------------------------- 자동 검색 + 설명 기능 -----------------------------
 if st.session_state.get("processed", False):
     st.write("---")
     if st.session_state.lang == 'korean':
-        st.write("## 🔍 키워드 검색")
+        st.write("## 🔍 키워드 검색 및 자동 정보 제공")
         search_query = st.text_input("검색할 키워드를 입력하세요:")
     else:
-        st.write("## 🔍 Keyword Search")
+        st.write("## 🔍 Keyword Search & Auto Explanation")
         search_query = st.text_input("Enter a keyword to search:")
 
     if search_query:
-        search_results = []
-        for line in st.session_state.extracted_text.split('\n'):
-            if search_query.lower() in line.lower():
-                search_results.append(line.strip())
-        if search_results:
+        with st.spinner("검색 중..."):
+            results, explanation = search_and_auto_explain(st.session_state.extracted_text, search_query, st.session_state.lang)
+        if results:
+            # 검색 결과 표시
             if st.session_state.lang == 'korean':
-                st.write("### 검색 결과:")
+                st.write("### 검색된 문맥:")
             else:
-                st.write("### Search Results:")
-            for result in search_results:
-                st.write(f"- {result}")
+                st.write("### Matched Context:")
+            for r in results:
+                st.write(f"- {r}")
+            # GPT가 생성한 추가 설명 표시
+            if explanation:
+                if st.session_state.lang == 'korean':
+                    st.write("### GPT가 제공하는 추가 정보/설명:")
+                else:
+                    st.write("### GPT's Additional Info/Explanation:")
+                st.write(explanation)
         else:
             if st.session_state.lang == 'korean':
                 st.write("검색 결과가 없습니다.")
