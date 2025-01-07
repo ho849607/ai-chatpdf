@@ -15,7 +15,6 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from PIL import Image
-import pytesseract
 import subprocess
 import tempfile
 
@@ -26,11 +25,19 @@ try:
 except ImportError:
     DOCX_ENABLED = False
 
-# --- Tesseract 경로 설정 (실행 환경에 맞게 수정) ---
-# 일반적으로 PC 서버 환경: pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
-# 모바일 등 설치 불가능한 환경에서는 아래 경고 처리
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+# ------------------------------------------------------------------------
+# PaddleOCR 설치 확인 (설치 안 되어 있으면 except로 처리)
+# 이미지 OCR 시 PaddleOCR를 사용, 설치되어 있지 않으면 경고만 띄우고 건너뜀
+# ------------------------------------------------------------------------
+try:
+    from paddleocr import PaddleOCR
+    PADDLE_OCR_ENABLED = True
+    # 한국어, 영어 등 원하는 언어에 맞춰 lang 설정
+    ocr = PaddleOCR(lang='ko')  
+except ImportError:
+    PADDLE_OCR_ENABLED = False
 
+# NLTK 리소스 다운로드
 nltk.download('punkt')
 nltk.download('stopwords')
 
@@ -41,6 +48,7 @@ korean_stopwords = [
     '하지만', '그러나'
 ]
 
+# .env 파일에서 환경 변수 로드
 dotenv_path = Path('.env')
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -53,6 +61,7 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
+# ------------------------ 앱 타이틀 ------------------------
 st.title("studyhelper")
 st.write("---")
 
@@ -85,6 +94,7 @@ def chat_interface():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
+    # 기존 채팅 이력 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
             with st.chat_message("user"):
@@ -93,6 +103,7 @@ def chat_interface():
             with st.chat_message("assistant"):
                 st.write(chat["message"])
 
+    # 사용자 입력
     if st.session_state.lang == 'korean':
         st.write("## ChatGPT와의 채팅 (GPT-4)")
         user_chat_input = st.chat_input("메시지를 입력하세요:")
@@ -137,20 +148,33 @@ def pptx_to_text(upload_file):
         st.error(f"PPTX에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
 
-#########################################################################
-# ------------- 수정: Tesseract가 없으면 경고 후 처리 건너뛰기 -------------
-#########################################################################
+#######################################################################
+# 이미지에서 텍스트 추출 (PaddleOCR)
+#######################################################################
 def image_to_text(uploaded_image):
-    """이미지 파일에서 텍스트 추출 (pytesseract 사용)"""
-    try:
-        # Tesseract 설치 여부 확인: which("tesseract")가 None이면 설치 X
-        if shutil.which("tesseract") is None:
-            st.warning("Tesseract가 설치되어 있지 않은 환경입니다. 이미지 텍스트 인식을 건너뜁니다.")
-            return ""
+    """이미지 파일에서 텍스트 추출 (PaddleOCR 사용)"""
+    if not PADDLE_OCR_ENABLED:
+        st.warning("PaddleOCR가 설치되어 있지 않은 환경입니다. 이미지 텍스트 인식을 건너뜁니다.")
+        return ""
 
-        image = Image.open(uploaded_image)
-        text = pytesseract.image_to_string(image, lang='kor+eng')
-        return text
+    try:
+        # 임시 파일로 저장해서 PaddleOCR에 전달
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_img:
+            image = Image.open(uploaded_image)
+            image.save(tmp_img.name, format='PNG')
+            tmp_path = tmp_img.name
+
+        # OCR 수행
+        result = ocr.ocr(tmp_path, cls=False)
+        extracted_text = ""
+        for line in result:
+            for word_info in line:
+                extracted_text += word_info[1][0] + "\n"
+
+        # 임시 파일 삭제
+        os.remove(tmp_path)
+        return extracted_text.strip()
+
     except Exception as e:
         st.warning(f"이미지에서 텍스트를 추출할 수 없습니다: {e}")
         return ""
@@ -304,6 +328,7 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
     buf.seek(0)
     return buf
 
+# 세션 초기화
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
@@ -319,9 +344,11 @@ if uploaded_file is not None:
     filename = uploaded_file.name
     extension = os.path.splitext(filename)[1].lower()
 
+    # 파일 해시
     file_bytes = uploaded_file.getvalue()
     file_hash = hashlib.md5(file_bytes).hexdigest()
 
+    # 중복 업로드 방지
     if ("uploaded_file_hash" not in st.session_state or
         st.session_state.uploaded_file_hash != file_hash):
         st.session_state.uploaded_file_hash = file_hash
@@ -338,8 +365,7 @@ if uploaded_file is not None:
         elif extension == ".pptx":
             extracted_text = pptx_to_text(uploaded_file)
         elif extension in [".png", ".jpg", ".jpeg"]:
-            # JPEG 등 이미지에서 텍스트 추출
-            extracted_text = image_to_text(uploaded_file)
+            extracted_text = image_to_text(uploaded_file)  # PaddleOCR
         elif extension == ".hwp":
             extracted_text = hwp_to_text(uploaded_file)
         elif extension == ".docx":
@@ -347,7 +373,7 @@ if uploaded_file is not None:
         elif extension == ".doc":
             extracted_text = doc_to_text(uploaded_file)
         else:
-            st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, DOC, DOCX만 업로드하세요.")
+            st.error("지원하지 않는 파일 형식입니다. (PDF, PPTX, PNG, JPG, JPEG, HWP, DOC, DOCX)")
             extracted_text = ""
 
         if not extracted_text.strip():
@@ -356,8 +382,7 @@ if uploaded_file is not None:
         else:
             st.success("텍스트 추출 완료!")
 
-            # 이하 LLM 처리(언어감지 -> 요약 -> 키워드추출 -> 용어검색 -> 질문생성) ...
-
+            # 언어 감지
             language_code = detect_language(extracted_text)
             if language_code == 'ko':
                 lang = 'korean'
@@ -373,18 +398,22 @@ if uploaded_file is not None:
             st.session_state.lang = lang
             st.session_state.extracted_text = extracted_text
 
+            # 요약
             with st.spinner("요약 생성 중..."):
                 summary = summarize_text(extracted_text, lang)
                 st.session_state.summary = summary
 
+            # 키워드 추출(요약 기반)
             with st.spinner("핵심 단어 추출 중..."):
                 key_summary_words = extract_key_summary_words_with_sources(st.session_state.summary, lang)
                 st.session_state.keywords = key_summary_words
 
+            # 중요 단어 정보
             with st.spinner("중요 단어 정보 추출 중..."):
                 term_info = extract_and_search_terms(st.session_state.summary, extracted_text, language=lang)
                 st.session_state.term_info = term_info
 
+            # GPT가 사용자에게 질문
             with st.spinner("GPT가 질문을 생성 중..."):
                 gpt_questions = generate_questions_for_user(extracted_text, lang)
                 st.session_state.gpt_questions = gpt_questions
@@ -468,4 +497,4 @@ if st.session_state.get("processed", False):
                     st.write(feedback)
 
 st.write("---")
-st.info("**⚠ ChatGPT는 때때로 부정확하거나 오해의 소지가 있는 답변을 할 수 있습니다. 중요한 정보는 추가로 검증하세요.**")
+st.info("**⚠ ChatGPT는 때때로 부정확하거나 오해의 소지가 있는 답변을 할 수 있습니다. 중요한 정보를 추가로 검증하세요.**")
