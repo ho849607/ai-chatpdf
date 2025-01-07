@@ -17,16 +17,20 @@ from PIL import Image
 import pytesseract
 import subprocess
 import tempfile
-import docx2txt  # docx 처리 라이브러리 (pip install docx2txt)
 
-# Tesseract 경로 (실행 환경에 맞게 수정 필요)
+# docx2txt 설치 확인 (설치 안 되어 있으면 except로 처리)
+try:
+    import docx2txt
+    DOCX_ENABLED = True
+except ImportError:
+    DOCX_ENABLED = False
+
+# Tesseract 경로 (실행 환경에 맞게 수정)
 pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 
-# NLTK 리소스 다운로드
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# 한국어 불용어 리스트 (필요하면 수정/추가)
 korean_stopwords = [
     '이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에',
     '의', '은', '는', '가', '와', '과', '하다', '있다', '되다', '이다',
@@ -34,11 +38,9 @@ korean_stopwords = [
     '하지만', '그러나'
 ]
 
-# .env 파일에서 환경 변수 로드
 dotenv_path = Path('.env')
 load_dotenv(dotenv_path=dotenv_path)
 
-# OpenAI API 키 설정
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     openai_api_key = st.sidebar.text_input("OpenAI API 키를 입력하세요.", type="password")
@@ -58,13 +60,11 @@ if 'lang' not in st.session_state:
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
 def add_chat_message(role, message):
-    """채팅 히스토리를 세션에 저장하는 헬퍼 함수"""
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     st.session_state.chat_history.append({"role": role, "message": message})
 
 def ask_gpt_question(question, language):
-    """GPT에게 질문하고 답변을 반환"""
     llm = ChatOpenAI(
         model_name="gpt-4", 
         temperature=0, 
@@ -80,11 +80,9 @@ def ask_gpt_question(question, language):
     return response.content
 
 def chat_interface():
-    """화면에 채팅 인터페이스 구성"""
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # 기존 채팅 히스토리 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
             with st.chat_message("user"):
@@ -93,7 +91,6 @@ def chat_interface():
             with st.chat_message("assistant"):
                 st.write(chat["message"])
 
-    # 사용자 입력
     if st.session_state.lang == 'korean':
         st.write("## ChatGPT와의 채팅 (GPT-4)")
         user_chat_input = st.chat_input("메시지를 입력하세요:")
@@ -101,7 +98,6 @@ def chat_interface():
         st.write("## Chat with ChatGPT (GPT-4)")
         user_chat_input = st.chat_input("Enter your message:")
 
-    # 사용자 입력을 처리
     if user_chat_input:
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
@@ -114,7 +110,6 @@ def chat_interface():
                 st.write(gpt_response)
 
 def pdf_to_text(upload_file):
-    """PDF 파일에서 텍스트 추출"""
     try:
         with pdfplumber.open(BytesIO(upload_file.getvalue())) as pdf:
             pages = []
@@ -128,7 +123,6 @@ def pdf_to_text(upload_file):
         return ""
 
 def pptx_to_text(upload_file):
-    """PPTX 파일에서 텍스트 추출"""
     try:
         prs = Presentation(BytesIO(upload_file.getvalue()))
         text_runs = []
@@ -142,7 +136,6 @@ def pptx_to_text(upload_file):
         return ""
 
 def image_to_text(uploaded_image):
-    """이미지 파일에서 텍스트 추출 (pytesseract 사용)"""
     try:
         image = Image.open(uploaded_image)
         if not os.path.exists(pytesseract.pytesseract.tesseract_cmd):
@@ -155,7 +148,6 @@ def image_to_text(uploaded_image):
         return ""
 
 def hwp_to_text(upload_file):
-    """HWP 파일에서 텍스트 추출 (hwp5txt 사용)"""
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as tmp:
             tmp.write(upload_file.getvalue())
@@ -174,7 +166,10 @@ def hwp_to_text(upload_file):
         return ""
 
 def docx_to_text(upload_file):
-    """DOCX 파일에서 텍스트 추출 (docx2txt 사용)"""
+    """docx2txt 사용 (설치 안 된 경우 None 반환)"""
+    if not DOCX_ENABLED:
+        st.warning("docx2txt가 설치되어 있지 않아 .docx 파일을 처리할 수 없습니다.")
+        return ""
     try:
         text = docx2txt.process(BytesIO(upload_file.getvalue()))
         return text if text else ""
@@ -202,7 +197,6 @@ def doc_to_text(upload_file):
         return ""
 
 def detect_language(text):
-    """업로드된 텍스트의 언어를 ISO 639-1 코드로 감지"""
     llm = ChatOpenAI(
         model_name="gpt-4",
         temperature=0,
@@ -216,7 +210,6 @@ def detect_language(text):
     return language_code
 
 def summarize_text(text, language):
-    """추출 텍스트 요약 (서론, 본론, 결론)"""
     llm = ChatOpenAI(
         model_name="gpt-4",
         temperature=0,
@@ -232,7 +225,6 @@ def summarize_text(text, language):
     return response.content.strip()
 
 def extract_key_summary_words_with_sources(text, language):
-    """키워드 추출 (5~10개) + 출처 표시"""
     llm = ChatOpenAI(
         model_name="gpt-4",
         temperature=0,
@@ -262,7 +254,6 @@ Text:
     return response.content.strip()
 
 def extract_and_search_terms(summary_text, extracted_text, language='english'):
-    """요약에서 중요한 용어 5~10개를 추출 후 정의/페이지 정보 제공"""
     llm = ChatOpenAI(
         model_name="gpt-4",
         temperature=0,
@@ -277,55 +268,7 @@ def extract_and_search_terms(summary_text, extracted_text, language='english'):
     response = llm(messages)
     return response.content.strip()
 
-# 자동 검색 + 설명: 찾은 문맥을 LLM에 전달해 추가 정보를 요약해 주는 함수
-def search_and_auto_explain(text, search_query, language='english'):
-    """사용자가 입력한 키워드로 텍스트를 검색하고,
-       해당 문맥을 GPT에 전달하여 요약/설명을 생성해주는 기능"""
-    # 키워드 포함 문장(혹은 라인) 검색
-    results = []
-    for line in text.split('\n'):
-        if search_query.lower() in line.lower():
-            results.append(line.strip())
-
-    # 결과가 없다면 바로 반환
-    if not results:
-        return None, None
-
-    # 검색된 문맥을 일정 길이로 묶어서 GPT에 전달 (라인이 많을 경우 대비)
-    # 여기서는 간단히 전부 합쳐서 전달하지만, 필요하다면 토큰 조절/분할 로직 사용 가능
-    matched_text = "\n".join(results)
-
-    # GPT에게 추가 설명/요약 요청
-    llm = ChatOpenAI(
-        model_name="gpt-4",
-        temperature=0,
-        streaming=True,
-        callbacks=[StreamingStdOutCallbackHandler()]
-    )
-
-    if language == 'korean':
-        prompt = f"""다음 텍스트는 사용자가 '{search_query}'를 포함하는 문맥입니다.
-이 문맥에 대해 간단한 요약 또는 추가 설명을 해주세요.
-
-문맥:
-{matched_text}
-"""
-    else:
-        prompt = f"""The following text contains the search term '{search_query}'.
-Please provide a brief summary or explanation about this content.
-
-Matched context:
-{matched_text}
-"""
-
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    explanation = response.content.strip()
-
-    return results, explanation
-
 def generate_questions_for_user(text, language):
-    """사용자가 더 깊이 생각할 수 있는 3개 질문 생성"""
     llm = ChatOpenAI(
         model_name="gpt-4",
         temperature=0,
@@ -342,7 +285,6 @@ def generate_questions_for_user(text, language):
     return questions
 
 def create_ppt_from_text(text, filename="summary_output.pptx"):
-    """요약 내용을 PPT 파일로 변환 후 다운로드할 수 있는 객체 생성"""
     prs = Presentation()
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
@@ -354,30 +296,25 @@ def create_ppt_from_text(text, filename="summary_output.pptx"):
     buf.seek(0)
     return buf
 
-# 세션 초기화
 if "processed" not in st.session_state:
     st.session_state.processed = False
 
-# 파일 업로더 (PDF, PPTX, PNG, JPG, JPEG, HWP, DOC, DOCX 지원)
 uploaded_file = st.file_uploader(
     "파일을 업로드하세요 (PDF, PPTX, 이미지, HWP, DOC, DOCX)",
     type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp', 'doc', 'docx']
 )
 
-# GPT-4와의 채팅 인터페이스
 chat_interface()
 
 if uploaded_file is not None:
     filename = uploaded_file.name
     extension = os.path.splitext(filename)[1].lower()
 
-    # 업로드된 파일 해시로 중복 처리 방지
     file_bytes = uploaded_file.getvalue()
     file_hash = hashlib.md5(file_bytes).hexdigest()
 
     if ("uploaded_file_hash" not in st.session_state or
         st.session_state.uploaded_file_hash != file_hash):
-        # 새 파일이 업로드된 경우 세션 초기화
         st.session_state.uploaded_file_hash = file_hash
         st.session_state.extracted_text = ""
         st.session_state.summary = ""
@@ -387,7 +324,6 @@ if uploaded_file is not None:
         st.session_state.processed = False
 
     if not st.session_state.processed:
-        # 확장자별 텍스트 추출
         if extension == ".pdf":
             extracted_text = pdf_to_text(uploaded_file)
         elif extension == ".pptx":
@@ -397,21 +333,19 @@ if uploaded_file is not None:
         elif extension == ".hwp":
             extracted_text = hwp_to_text(uploaded_file)
         elif extension == ".docx":
-            extracted_text = docx_to_text(uploaded_file)
+            extracted_text = docx_to_text(uploaded_file)  # docx2txt가 없으면 "" 반환
         elif extension == ".doc":
-            extracted_text = doc_to_text(uploaded_file)
+            extracted_text = doc_to_text(uploaded_file)   # antiword 필요
         else:
             st.error("지원하지 않는 파일 형식입니다. PDF, PPTX, PNG, JPG, JPEG, HWP, DOC, DOCX만 업로드하세요.")
             extracted_text = ""
 
-        # 텍스트가 추출되지 않았을 경우
         if not extracted_text.strip():
             st.error("업로드된 파일에서 텍스트를 추출할 수 없습니다.")
             st.session_state.summary = ""
         else:
             st.success("텍스트 추출 완료!")
 
-            # 언어 감지
             language_code = detect_language(extracted_text)
             if language_code == 'ko':
                 lang = 'korean'
@@ -427,29 +361,24 @@ if uploaded_file is not None:
             st.session_state.lang = lang
             st.session_state.extracted_text = extracted_text
 
-            # 요약
             with st.spinner("요약 생성 중..."):
                 summary = summarize_text(extracted_text, lang)
                 st.session_state.summary = summary
 
-            # 핵심 단어
             with st.spinner("핵심 단어 추출 중..."):
                 key_summary_words = extract_key_summary_words_with_sources(extracted_text, lang)
                 st.session_state.keywords = key_summary_words
 
-            # 중요 단어 정보
             with st.spinner("중요 단어 정보 추출 중..."):
                 term_info = extract_and_search_terms(summary, extracted_text, language=lang)
                 st.session_state.term_info = term_info
 
-            # GPT가 사용자에게 질문
             with st.spinner("GPT가 질문을 생성 중..."):
                 gpt_questions = generate_questions_for_user(extracted_text, lang)
                 st.session_state.gpt_questions = gpt_questions
 
             st.session_state.processed = True
 
-    # 처리 후 결과 표시
     if st.session_state.get("processed", False):
         if 'summary' in st.session_state and st.session_state.summary.strip():
             st.write("## 요약 결과")
@@ -466,7 +395,6 @@ if uploaded_file is not None:
             st.write(st.session_state.term_info)
 
         st.write("---")
-        # PPT 다운로드
         if st.button("요약 내용을 PPT로 다운로드"):
             ppt_buffer = create_ppt_from_text(st.session_state.summary)
             st.download_button(
@@ -476,41 +404,33 @@ if uploaded_file is not None:
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
-# ----------------------------- 자동 검색 + 설명 기능 -----------------------------
 if st.session_state.get("processed", False):
     st.write("---")
     if st.session_state.lang == 'korean':
-        st.write("## 🔍 키워드 검색 및 자동 정보 제공")
+        st.write("## 🔍 키워드 검색")
         search_query = st.text_input("검색할 키워드를 입력하세요:")
     else:
-        st.write("## 🔍 Keyword Search & Auto Explanation")
+        st.write("## 🔍 Keyword Search")
         search_query = st.text_input("Enter a keyword to search:")
 
     if search_query:
-        with st.spinner("검색 중..."):
-            results, explanation = search_and_auto_explain(st.session_state.extracted_text, search_query, st.session_state.lang)
-        if results:
-            # 검색 결과 표시
+        search_results = []
+        for line in st.session_state.extracted_text.split('\n'):
+            if search_query.lower() in line.lower():
+                search_results.append(line.strip())
+        if search_results:
             if st.session_state.lang == 'korean':
-                st.write("### 검색된 문맥:")
+                st.write("### 검색 결과:")
             else:
-                st.write("### Matched Context:")
-            for r in results:
-                st.write(f"- {r}")
-            # GPT가 생성한 추가 설명 표시
-            if explanation:
-                if st.session_state.lang == 'korean':
-                    st.write("### GPT가 제공하는 추가 정보/설명:")
-                else:
-                    st.write("### GPT's Additional Info/Explanation:")
-                st.write(explanation)
+                st.write("### Search Results:")
+            for result in search_results:
+                st.write(f"- {result}")
         else:
             if st.session_state.lang == 'korean':
                 st.write("검색 결과가 없습니다.")
             else:
                 st.write("No results found.")
 
-# GPT가 사용자에게 질문 -> 사용자 답변에 대해 GPT 피드백
 if st.session_state.get("processed", False):
     st.write("---")
     if st.session_state.lang == 'korean':
@@ -524,15 +444,9 @@ if st.session_state.get("processed", False):
             if user_answer:
                 with st.spinner("GPT가 응답을 검토 중입니다..."):
                     if st.session_state.lang == 'korean':
-                        feedback_prompt = (
-                            f"{question}\n\n사용자 답변: {user_answer}\n\n"
-                            "이 답변에 대한 피드백을 제공해 주세요."
-                        )
+                        feedback_prompt = f"{question}\n\n사용자 답변: {user_answer}\n\n피드백을 제공해 주세요."
                     else:
-                        feedback_prompt = (
-                            f"{question}\n\nUser's answer: {user_answer}\n\n"
-                            "Please provide feedback on this answer."
-                        )
+                        feedback_prompt = f"{question}\n\nUser's answer: {user_answer}\n\nPlease provide feedback on this."
                     feedback = ask_gpt_question(feedback_prompt, st.session_state.lang)
                     if st.session_state.lang == 'korean':
                         st.write("### GPT의 피드백")
