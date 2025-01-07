@@ -1,4 +1,5 @@
 import os
+import shutil
 import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
@@ -25,8 +26,10 @@ try:
 except ImportError:
     DOCX_ENABLED = False
 
-# Tesseract 경로 (실행 환경에 맞게 수정)
-pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
+# --- Tesseract 경로 설정 (실행 환경에 맞게 수정) ---
+# 일반적으로 PC 서버 환경: pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
+# 모바일 등 설치 불가능한 환경에서는 아래 경고 처리
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -50,7 +53,6 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
-# ------------------------ 제목: studyhelper ------------------------
 st.title("studyhelper")
 st.write("---")
 
@@ -59,46 +61,6 @@ if 'lang' not in st.session_state:
 
 st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하여 파일을 올려주세요.")
 
-###############################################################################
-# 1. 긴 텍스트를 여러 청크로 나누어 요약하기 위한 헬퍼 함수
-###############################################################################
-def chunk_text(text, chunk_size=3000):
-    """
-    토큰 수 대신 '문자 길이' 기준으로 간단히 청크를 나누는 예시입니다.
-    실제로는 tiktoken 등을 사용해 토큰 단위로 나누는 것이 더 정확합니다.
-    """
-    chunks = []
-    start = 0
-    length = len(text)
-    while start < length:
-        end = min(start + chunk_size, length)
-        chunks.append(text[start:end])
-        start = end
-    return chunks
-
-def summarize_text_in_chunks(text, language, chunk_size=3000):
-    """
-    긴 텍스트를 여러 청크로 나누어 각 청크를 요약 -> 부분 요약들을 합쳐 최종 요약.
-    """
-    # 1) 텍스트를 여러 청크로 나눈다.
-    text_chunks = chunk_text(text, chunk_size=chunk_size)
-
-    # 2) 각 청크에 대해 부분 요약
-    partial_summaries = []
-    for i, chunk in enumerate(text_chunks):
-        st.write(f"### 청크 {i+1} 요약 중...")
-        summary_chunk = summarize_text(chunk, language)  # 기존 summarize_text 함수 사용
-        partial_summaries.append(summary_chunk)
-
-    # 3) 부분 요약들을 합친 뒤, 그 자체를 다시 요약(선택 사항)
-    joined_summary = "\n".join(partial_summaries)
-    st.write("### 부분 요약들을 합쳐 최종 요약 중...")
-    final_summary = summarize_text(joined_summary, language)
-    return final_summary
-
-###############################################################################
-# 2. GPT와의 채팅, 파일 업로드, 텍스트 추출 등 기존 기능
-###############################################################################
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -175,16 +137,22 @@ def pptx_to_text(upload_file):
         st.error(f"PPTX에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}")
         return ""
 
+#########################################################################
+# ------------- 수정: Tesseract가 없으면 경고 후 처리 건너뛰기 -------------
+#########################################################################
 def image_to_text(uploaded_image):
+    """이미지 파일에서 텍스트 추출 (pytesseract 사용)"""
     try:
-        image = Image.open(uploaded_image)
-        if not os.path.exists(pytesseract.pytesseract.tesseract_cmd):
-            st.error("Tesseract가 설치되어 있지 않거나 경로가 올바르지 않습니다.")
+        # Tesseract 설치 여부 확인: which("tesseract")가 None이면 설치 X
+        if shutil.which("tesseract") is None:
+            st.warning("Tesseract가 설치되어 있지 않은 환경입니다. 이미지 텍스트 인식을 건너뜁니다.")
             return ""
+
+        image = Image.open(uploaded_image)
         text = pytesseract.image_to_string(image, lang='kor+eng')
         return text
     except Exception as e:
-        st.error(f'이미지에서 텍스트를 추출하는 중 오류가 발생했습니다: {e}')
+        st.warning(f"이미지에서 텍스트를 추출할 수 없습니다: {e}")
         return ""
 
 def hwp_to_text(upload_file):
@@ -206,7 +174,7 @@ def hwp_to_text(upload_file):
         return ""
 
 def docx_to_text(upload_file):
-    """docx2txt 사용 (설치 안 된 경우 None 반환)"""
+    """docx2txt 사용 (설치 안 된 경우 경고 후 "")"""
     if not DOCX_ENABLED:
         st.warning("docx2txt가 설치되어 있지 않아 .docx 파일을 처리할 수 없습니다.")
         return ""
@@ -365,12 +333,12 @@ if uploaded_file is not None:
         st.session_state.processed = False
 
     if not st.session_state.processed:
-        # 파일 유형별로 텍스트 추출
         if extension == ".pdf":
             extracted_text = pdf_to_text(uploaded_file)
         elif extension == ".pptx":
             extracted_text = pptx_to_text(uploaded_file)
         elif extension in [".png", ".jpg", ".jpeg"]:
+            # JPEG 등 이미지에서 텍스트 추출
             extracted_text = image_to_text(uploaded_file)
         elif extension == ".hwp":
             extracted_text = hwp_to_text(uploaded_file)
@@ -388,6 +356,8 @@ if uploaded_file is not None:
         else:
             st.success("텍스트 추출 완료!")
 
+            # 이하 LLM 처리(언어감지 -> 요약 -> 키워드추출 -> 용어검색 -> 질문생성) ...
+
             language_code = detect_language(extracted_text)
             if language_code == 'ko':
                 lang = 'korean'
@@ -403,18 +373,16 @@ if uploaded_file is not None:
             st.session_state.lang = lang
             st.session_state.extracted_text = extracted_text
 
-            # ---------------------- 부분 요약 -> 최종 요약 ----------------------
             with st.spinner("요약 생성 중..."):
-                # 기존 summarize_text 대신, summarize_text_in_chunks로 변경
-                summary = summarize_text_in_chunks(extracted_text, lang, chunk_size=3000)
+                summary = summarize_text(extracted_text, lang)
                 st.session_state.summary = summary
 
             with st.spinner("핵심 단어 추출 중..."):
-                key_summary_words = extract_key_summary_words_with_sources(extracted_text, lang)
+                key_summary_words = extract_key_summary_words_with_sources(st.session_state.summary, lang)
                 st.session_state.keywords = key_summary_words
 
             with st.spinner("중요 단어 정보 추출 중..."):
-                term_info = extract_and_search_terms(summary, extracted_text, language=lang)
+                term_info = extract_and_search_terms(st.session_state.summary, extracted_text, language=lang)
                 st.session_state.term_info = term_info
 
             with st.spinner("GPT가 질문을 생성 중..."):
