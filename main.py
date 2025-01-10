@@ -15,6 +15,8 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from PIL import Image
+import cv2  # OpenCV 임포트
+import numpy as np
 import subprocess
 import tempfile
 
@@ -147,35 +149,71 @@ def pptx_to_text(upload_file):
         return ""
 
 #######################################################################
-# 이미지에서 텍스트 추출 (PaddleOCR)
+# 이미지에서 텍스트 추출 (PaddleOCR) + OpenCV 간단 색상 반전 예시
 #######################################################################
 def image_to_text(uploaded_image):
-    """이미지 파일에서 텍스트 추출 (PaddleOCR 사용)"""
+    """
+    1) PaddleOCR로 이미지 텍스트 인식
+    2) OpenCV로 색상 반전 예시
+    3) 원본 이미지와 반전된 이미지를 화면에 표시
+    4) 인식된 텍스트를 반환
+    """
     if not PADDLE_OCR_ENABLED:
         st.warning("PaddleOCR가 설치되어 있지 않은 환경입니다. 이미지 텍스트 인식을 건너뜁니다.")
-        return ""
+        # 그래도 OpenCV 처리를 해볼 수 있음. 단, OCR 결과는 빈 문자열
+        return image_opencv_demo(uploaded_image), ""
 
     try:
-        # 임시 파일로 저장해서 PaddleOCR에 전달
+        # ① 임시 파일에 저장하여 PaddleOCR에 전달
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_img:
             image = Image.open(uploaded_image)
             image.save(tmp_img.name, format='PNG')
             tmp_path = tmp_img.name
 
-        # OCR 수행
+        # ② OCR 수행
         result = ocr.ocr(tmp_path, cls=False)
         extracted_text = ""
         for line in result:
             for word_info in line:
                 extracted_text += word_info[1][0] + "\n"
 
-        # 임시 파일 삭제
+        # ③ 임시 파일 삭제
         os.remove(tmp_path)
-        return extracted_text.strip()
+
+        # ④ OpenCV 색 반전 데모 출력
+        inverted_image = image_opencv_demo(uploaded_image)
+
+        # 반환: (반전 이미지, OCR 텍스트)
+        return inverted_image, extracted_text.strip()
 
     except Exception as e:
         st.warning(f"이미지에서 텍스트를 추출할 수 없습니다: {e}")
-        return ""
+        # 그래도 OpenCV 데모 처리 시도
+        inverted_image = image_opencv_demo(uploaded_image)
+        return inverted_image, ""
+
+def image_opencv_demo(uploaded_image):
+    """
+    OpenCV로 색상 반전한 이미지를 만들고,
+    Streamlit에 이미지로 표시한 뒤,
+    최종 numpy 배열을 PIL로 변환해서 반환 (원하면 세션에 저장 가능).
+    """
+    image = Image.open(uploaded_image).convert("RGB")
+    img_array = np.array(image)
+
+    # OpenCV BGR로 변환
+    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+    # 색상 반전
+    inverted_bgr = 255 - img_bgr
+    # 다시 RGB로
+    inverted_rgb = cv2.cvtColor(inverted_bgr, cv2.COLOR_BGR2RGB)
+
+    # 화면에 표시
+    st.image(inverted_rgb, caption="색상 반전된 이미지 (OpenCV 예시)", use_column_width=True)
+
+    # 필요하면 PIL 객체로 변환해서 반환 가능
+    inverted_pil = Image.fromarray(inverted_rgb)
+    return inverted_pil
 
 def hwp_to_text(upload_file):
     try:
@@ -362,7 +400,11 @@ if uploaded_file is not None:
         elif extension == ".pptx":
             extracted_text = pptx_to_text(uploaded_file)
         elif extension in [".png", ".jpg", ".jpeg"]:
-            extracted_text = image_to_text(uploaded_file)  # PaddleOCR
+            # ★ 이미지 업로드 시, image_to_text 함수가
+            #   (반전된 이미지, 추출 텍스트) 튜플을 반환하게 함
+            inverted_image, ocr_text = image_to_text(uploaded_file)
+            # OCR 텍스트만 extracted_text로 간주
+            extracted_text = ocr_text
         elif extension == ".hwp":
             extracted_text = hwp_to_text(uploaded_file)
         elif extension == ".docx":
@@ -374,6 +416,7 @@ if uploaded_file is not None:
             extracted_text = ""
 
         if not extracted_text.strip():
+            # OCR 텍스트가 없을 수도 있음(예: 이미지에 글자가 없음)
             st.error("업로드된 파일에서 텍스트를 추출할 수 없습니다.")
             st.session_state.summary = ""
         else:
