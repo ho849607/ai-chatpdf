@@ -9,7 +9,7 @@ pdfplumber
 python-pptx
 python-docx
 pyhwp
-pillo
+pillow
 opencv-python
 pytesseract
 paddleoc
