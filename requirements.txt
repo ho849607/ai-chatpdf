@@ -1,43 +1,20 @@
-# -------------------------------
-# 텍스트 및 벡터 DB 관련
-# -------------------------------
 langchain
 langchain-community
 langdetect
 docarray
 chromadb
-
-# -------------------------------
-# NLTK, Tokenization
-# -------------------------------
 nltk
 tiktoken
-# -------------------------------
-# PDF, PPTX, DOCX, HWP 처리
-# -------------------------------
 pdfplumbe
 python-pptx
 python-docx
 pyhwp
-# hwp5txt는 별도 설치(시스템 패키지) 필요
-
-# -------------------------------
-# 이미지 처리 및 OCR
-# -------------------------------
 pillo
 opencv-python
 pytesseract
 paddleoc
-
-# -------------------------------
-# OpenAI 및 Streamlit
-# -------------------------------
 openai
 streamlit
 python-dotenv
 protobuf
-
-# -------------------------------
-# 기타
-# -------------------------------
 JPype1
