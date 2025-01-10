@@ -12,7 +12,7 @@ pyhwp
 pillow
 opencv-python
 pytesseract
-paddleoc
+paddleocr      # 여기서 "paddleoc" → "paddleocr"로 수정
 openai
 streamlit
 python-dotenv
