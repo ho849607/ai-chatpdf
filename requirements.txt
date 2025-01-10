@@ -5,7 +5,7 @@ docarray
 chromadb
 nltk
 tiktoken
-pdfplumbe
+pdfplumber
 python-pptx
 python-docx
 pyhwp
