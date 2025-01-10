@@ -1,19 +1,44 @@
-chromadb
-docarray
-JPype1
-langchain
-langchain-community
-langdetect
-nltk
-openai
-pdfplumber
-pillow
-protobuf
-pyhwp
-python-docx  # docx 파일 처리를 위해 추가 (필요시)
-python-dotenv
-python-pptx
-pytesseract
-streamlit
-tiktoken
-paddleocr
+# -------------------------------
+# 텍스트 및 벡터 DB 관련
+# -------------------------------
+langchain==0.0.255           # langchain
+langchain-community==0.0.2   # langchain 커뮤니티 플러그인 (사용 시)
+langdetect==1.0.9            # 언어감지
+docarray==0.16.1             # 문서 배열 처리 (필요하면 추가)
+chromadb==0.3.26             # Chroma DB (사용 시)
+
+# -------------------------------
+# NLTK, Tokenization
+# -------------------------------
+nltk==3.8.1                  # 자연어처리
+tiktoken==0.5.1             # GPT 토큰 처리 (langchain 등에서 필요)
+
+# -------------------------------
+# PDF, PPTX, DOCX, HWP 처리
+# -------------------------------
+pdfplumber==0.9.0            # PDF 텍스트 추출
+python-pptx==0.6.21          # PPTX 처리
+python-docx==0.8.11          # docx 처리 (python-docx)
+pyhwp==0.1.3                 # hwp5txt가 아니라 pyhwp를 사용할 경우 (선택)
+# hwp5txt는 별도 설치(시스템 패키지) 필요
+
+# -------------------------------
+# 이미지 처리 및 OCR
+# -------------------------------
+pillow==9.5.0                # PIL 이미지 처리
+opencv-python==4.8.0.76      # OpenCV
+pytesseract==0.3.10          # Tesseract OCR 파이썬 래퍼
+paddleocr==2.6.1.2           # PaddleOCR (사용 시)
+
+# -------------------------------
+# OpenAI 및 Streamlit
+# -------------------------------
+openai==0.27.7               # OpenAI 라이브러리
+streamlit==1.25.0            # 웹 대시보드
+python-dotenv==1.0.0         # 환경변수 관리 (.env)
+protobuf==4.24.3             # gRPC/protobuf 버전 호환 (langchain 등)
+
+# -------------------------------
+# 기타
+# -------------------------------
+JPype1==1.4.1                # Java 라이브러리 연동이 필요한 경우 (필요 시)
