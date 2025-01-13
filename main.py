@@ -1,24 +1,13 @@
 import os
-import shutil
 import streamlit as st
 from io import BytesIO
 from dotenv import load_dotenv
-import pdfplumber
-from pptx import Presentation
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage
-from langchain.callbacks import StreamingStdOutCallbackHandler
 import openai
 from pathlib import Path
 import hashlib
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from PIL import Image
-import cv2
-import numpy as np
-import subprocess
-import tempfile
 
 # docx2txt 설치 확인
 try:
@@ -27,25 +16,41 @@ try:
 except ImportError:
     DOCX_ENABLED = False
 
-# PaddleOCR 설치 확인
+# 필요 없는 라이브러리(예: PDF, PPTX, 이미지 처리 관련)는 주석 처리/삭제
+# import pdfplumber
+# import cv2
+# import numpy as np
+# from pptx import Presentation
+# from paddleocr import PaddleOCR
+
+# 초기 NLTK 다운로드(존재하지 않을 때만)
 try:
-    from paddleocr import PaddleOCR
-    PADDLE_OCR_ENABLED = True
-    ocr = PaddleOCR(lang='ko')  
-except ImportError:
-    PADDLE_OCR_ENABLED = False
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
 
-# NLTK
-nltk.download('punkt')
-nltk.download('stopwords')
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords')
 
+# 사용자 정의 한국어 스톱워드
 korean_stopwords = [
     '이', '그', '저', '것', '수', '등', '들', '및', '더', '로', '를', '에',
     '의', '은', '는', '가', '와', '과', '하다', '있다', '되다', '이다',
-    '으로', '에서', '까지', '부터', '까지', '만', '하다', '그리고',
-    '하지만', '그러나'
+    '으로', '에서', '까지', '부터', '만', '그리고', '하지만', '그러나'
 ]
+# NLTK 영어 스톱워드 + 한국어 스톱워드 병합
+english_stopwords = set(stopwords.words('english'))
+korean_stopwords_set = set(korean_stopwords)
+final_stopwords = english_stopwords.union(korean_stopwords_set)
 
+# Streamlit 페이지 설정
+st.set_page_config(page_title="studyhelper")
+
+###############################################################################
+# .env 로드 및 OpenAI API 키 설정
+###############################################################################
 dotenv_path = Path('.env')
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -58,23 +63,14 @@ if not openai_api_key:
 
 openai.api_key = openai_api_key
 
-st.set_page_config(page_title="studyhelper")
-st.title("studyhelper - (고급 버전 예시)")
-st.write("---")
-
-if 'lang' not in st.session_state:
-    st.session_state.lang = 'english'
-
-st.warning("저작물을 불법 복제하여 게시하는 경우 당사는 책임지지 않으며, 저작권법에 유의하세요.")
-
-################################################################################
-# (A) 새로 추가할 '문단별 중요도 평가 & chunking' 로직 예시
-################################################################################
+###############################################################################
+# (A) 문단/구조 기반 Chunking 예시 (실제 Heading 인식 아님)
+###############################################################################
 def chunk_text_by_heading(docx_text):
     """
-    docx_text(전체 문자열)에서 'Heading1', 'Heading2' 등으로 분할하는 예시.
-    실제로는 python-docx 등으로 문단 스타일을 확인해야 하지만,
-    여기서는 간단히 '===Heading:' 마커를 가정해서 데모.
+    [데모용 함수]
+    docx_text를 "===Heading:"라는 인위적 토큰을 기준으로 분할.
+    실제 Word 문서의 Heading 구조를 인식하려면 python-docx 등을 이용해주세요.
     """
     lines = docx_text.split('\n')
     chunks = []
@@ -84,7 +80,7 @@ def chunk_text_by_heading(docx_text):
 
     for line in lines:
         if line.strip().startswith("===Heading:"):
-            # 새 heading이 나오면, 이전 chunk를 저장
+            # 이전 chunk를 저장
             if current_chunk:
                 chunks.append({
                     "id": chunk_id,
@@ -93,7 +89,6 @@ def chunk_text_by_heading(docx_text):
                 })
                 chunk_id += 1
                 current_chunk = []
-            # heading 갱신
             heading_title = line.replace("===Heading:", "").strip()
         else:
             current_chunk.append(line)
@@ -109,12 +104,16 @@ def chunk_text_by_heading(docx_text):
 
 def gpt_evaluate_importance(chunk_text, language='korean'):
     """
-    chunk_text를 GPT에게 주고 '중요도'를 1~5 사이로 분류, 요약 등 받는 예시.
+    chunk_text를 GPT에게 주고 '중요도' (1~5)와 간단 요약을 얻는 샘플 로직.
+    실제 운영 환경에서는 Prompt와 파싱 로직을 좀 더 견고하게 설계하세요.
     """
+    from langchain.chat_models import ChatOpenAI
+    from langchain.schema import HumanMessage
+
     llm = ChatOpenAI(model_name="gpt-4", temperature=0)
     prompt = f"""
-    아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 판단해 주세요.
-    그리고 요약도 1~2문장으로 해 주세요.
+    아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 결정하고,
+    한두 문장으로 요약해 주세요.
 
     텍스트:
     {chunk_text}
@@ -125,8 +124,8 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
     """
     messages = [HumanMessage(content=prompt)]
     response = llm(messages).content.strip()
-    # 파싱 로직 단순 예시
-    importance = 3
+
+    importance = 3  # 기본값
     short_summary = ""
     for line in response.split('\n'):
         if "중요도:" in line:
@@ -139,26 +138,34 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
 
     return importance, short_summary
 
-################################################################################
-# (B) 기존 코드 일부 재사용
-################################################################################
-
+###############################################################################
+# 채팅 및 GPT 관련 함수
+###############################################################################
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     st.session_state.chat_history.append({"role": role, "message": message})
 
 def ask_gpt_question(question, language):
+    """
+    langchain을 사용한 GPT-4 질의 응답
+    """
+    from langchain.chat_models import ChatOpenAI
+    from langchain.callbacks import StreamingStdOutCallbackHandler
+    from langchain.schema import HumanMessage
+
     llm = ChatOpenAI(
-        model_name="gpt-4", 
-        temperature=0, 
-        streaming=True, 
+        model_name="gpt-4",
+        temperature=0,
+        streaming=True,
         callbacks=[StreamingStdOutCallbackHandler()]
     )
+
     if language == 'korean':
         prompt = f"다음 질문에 답변: {question}"
     else:
         prompt = question
+
     messages = [HumanMessage(content=prompt)]
     response = llm(messages)
     return response.content
@@ -167,6 +174,7 @@ def chat_interface():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
+    # 기존 채팅 이력 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
             with st.chat_message("user"):
@@ -175,28 +183,22 @@ def chat_interface():
             with st.chat_message("assistant"):
                 st.write(chat["message"])
 
-    if st.session_state.lang == 'korean':
-        st.write("## ChatGPT와의 채팅 (GPT-4)")
-        user_chat_input = st.chat_input("메시지를 입력하세요:")
-    else:
-        st.write("## Chat with ChatGPT (GPT-4)")
-        user_chat_input = st.chat_input("Enter your message:")
-
+    # 사용자 입력
+    user_chat_input = st.chat_input("메시지를 입력하세요:")
     if user_chat_input:
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
             st.write(user_chat_input)
 
         with st.spinner("GPT가 응답 중입니다..."):
-            gpt_response = ask_gpt_question(user_chat_input, st.session_state.lang)
+            gpt_response = ask_gpt_question(user_chat_input, 'korean')
             add_chat_message("assistant", gpt_response)
             with st.chat_message("assistant"):
                 st.write(gpt_response)
 
-################################################################################
-# 문서 포맷별 처리 함수 예시 (기존+부분 수정)
-################################################################################
-
+###############################################################################
+# 문서(.docx) 텍스트 추출 함수
+###############################################################################
 def docx_to_text(upload_file):
     if not DOCX_ENABLED:
         st.warning("docx2txt가 설치되어 있지 않아 .docx 파일을 처리할 수 없습니다.")
@@ -205,64 +207,59 @@ def docx_to_text(upload_file):
         text = docx2txt.process(BytesIO(upload_file.getvalue()))
         return text if text else ""
     except Exception as e:
-        st.error(f"DOCX 파일 처리 중 오류: {e}")
+        st.error(f"DOCX 파일 처리 중 오류가 발생했습니다: {e}")
         return ""
 
-################################################################################
-# (C) chunking+중요도 평가 프로세스 적용 (DOCX 예시)
-################################################################################
+###############################################################################
+# 고급 처리 (chunking + 중요도 평가) 예시
+###############################################################################
 def docx_advanced_processing(docx_text):
     """
-    1) 문단/heading 기준으로 chunk 분할
-    2) GPT에 chunk별 중요도/요약 평가
-    3) 성능 향상을 위한 placeholder 로직 (예: '단순 전처리 대비 20% 정확도 개선')
-    4) 결괏값(각 chunk의 중요도, 요약)을 합쳐 최종 텍스트
+    1) 문단/heading 단위로 chunk 분할(현재는 '===Heading:' 기반)
+    2) GPT로 각 chunk 중요도/간단 요약 평가
     """
     chunks = chunk_text_by_heading(docx_text)
     combined_result = []
+
     for c in chunks:
         importance, short_summary = gpt_evaluate_importance(c["text"], language='korean')
         c["importance"] = importance
         c["short_summary"] = short_summary
         combined_result.append(c)
-    
-    # 성능 향상 placeholder
-    # 실제론 별도 실험 결과가 필요
-    st.write("**[실험 결과 가정]**: Chunking+중요도 분류를 적용했더니 일반 요약 대비 20% 정확도 향상!")
 
-    # 예시로 최종 요약본 구성
+    # chunk별 요약 합침
     final_summary = []
     for c in combined_result:
-        final_summary.append(f"[Heading: {c['heading']}] (중요도: {c['importance']})\n요약: {c['short_summary']}\n")
-
-    # 텍스트 형태로 합침
+        final_summary.append(
+            f"[Heading: {c['heading']}] (중요도: {c['importance']})\n"
+            f"요약: {c['short_summary']}\n"
+        )
     return "\n".join(final_summary)
 
-################################################################################
-# 나머지 함수(pdf_to_text, pptx_to_text, image_to_text 등)는 원본 코드 재활용
-################################################################################
-
-# ... pdf_to_text, pptx_to_text, image_to_text, etc.
-
-################################################################################
-# (D) 메인 로직
-################################################################################
+###############################################################################
+# 메인
+###############################################################################
 def main():
-    uploaded_file = st.file_uploader(
-        "파일을 업로드하세요 (PDF, PPTX, 이미지, HWP, DOC, DOCX)",
-        type=['pdf', 'pptx', 'png', 'jpg', 'jpeg', 'hwp', 'doc', 'docx']
-    )
+    st.title("studyhelper")
+    st.warning("저작권에 유의하며 사용해 주세요.")
 
-    # GPT-4와의 채팅
+    # GPT-4와의 채팅 탭
+    st.write("---")
     chat_interface()
+
+    # 업로드 (docx만 허용)
+    st.write("---")
+    uploaded_file = st.file_uploader(
+        "DOCX 파일을 업로드하세요",
+        type=['docx']
+    )
 
     if uploaded_file is not None:
         filename = uploaded_file.name
-        extension = os.path.splitext(filename)[1].lower()
-
-        # 세션 중복 체크
         file_bytes = uploaded_file.getvalue()
         file_hash = hashlib.md5(file_bytes).hexdigest()
+
+        # 새로운 파일이 업로드될 때 상태 초기화
         if ("uploaded_file_hash" not in st.session_state or
             st.session_state.uploaded_file_hash != file_hash):
             st.session_state.uploaded_file_hash = file_hash
@@ -271,26 +268,22 @@ def main():
             st.session_state.processed = False
 
         if not st.session_state.processed:
-            if extension == ".docx":
-                raw_text = docx_to_text(uploaded_file)
-                # 고급 처리 (Chunking+GPT 중요도)
-                if raw_text.strip():
-                    advanced_summary = docx_advanced_processing(raw_text)
-                    st.session_state.summary = advanced_summary
-                    st.session_state.extracted_text = raw_text
-                    st.success("DOCX 고급 분석 완료!")
-                else:
-                    st.error("DOCX에서 텍스트를 추출할 수 없습니다.")
-                    st.session_state.summary = ""
+            raw_text = docx_to_text(uploaded_file)
+            if raw_text.strip():
+                advanced_summary = docx_advanced_processing(raw_text)
+                st.session_state.summary = advanced_summary
+                st.session_state.extracted_text = raw_text
+                st.success("DOCX 고급 분석 완료!")
             else:
-                st.warning("현재 예시 코드에서는 .docx 고급처리만 구현되어 있습니다. 다른 포맷은 기존 로직 사용 등 확장 필요.")
+                st.error("DOCX에서 텍스트를 추출할 수 없습니다.")
+                st.session_state.summary = ""
             
             st.session_state.processed = True
 
         # 결과 표시
         if st.session_state.get("processed", False):
             if 'summary' in st.session_state and st.session_state.summary.strip():
-                st.write("## (고급) 요약 결과")
+                st.write("## 요약 결과")
                 st.write(st.session_state.summary)
             else:
                 st.write("## 요약 결과를 표시할 수 없습니다.")
