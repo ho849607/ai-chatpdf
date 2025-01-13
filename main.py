@@ -16,13 +16,6 @@ try:
 except ImportError:
     DOCX_ENABLED = False
 
-# 필요 없는 라이브러리(예: PDF, PPTX, 이미지 처리 관련)는 주석 처리/삭제
-# import pdfplumber
-# import cv2
-# import numpy as np
-# from pptx import Presentation
-# from paddleocr import PaddleOCR
-
 # 초기 NLTK 다운로드(존재하지 않을 때만)
 try:
     nltk.data.find('tokenizers/punkt')
@@ -241,7 +234,10 @@ def docx_advanced_processing(docx_text):
 ###############################################################################
 def main():
     st.title("studyhelper")
+
+    # 주의 문구: ChatGPT 및 저작권
     st.warning("저작권에 유의하며 사용해 주세요.")
+    st.info("ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 확인하세요.")
 
     # GPT-4와의 채팅 탭
     st.write("---")
