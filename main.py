@@ -39,7 +39,7 @@ korean_stopwords_set = set(korean_stopwords)
 final_stopwords = english_stopwords.union(korean_stopwords_set)
 
 # Streamlit 페이지 설정
-st.set_page_config(page_title="studyhelper")
+st.set_page_config(page_title="studyhelper", layout="centered")
 
 ###############################################################################
 # .env 로드 및 OpenAI API 키 설정
@@ -57,7 +57,23 @@ if not openai_api_key:
 openai.api_key = openai_api_key
 
 ###############################################################################
-# 고급 분석(Chunk 분할 + 중요도 평가) 함수
+# GPT 연동 함수 (langchain 예시 없이 최소 구현)
+###############################################################################
+def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
+    """
+    OpenAI API를 통한 간단한 GPT 질의 함수.
+    langchain 없이, openai.ChatCompletion을 직접 사용한 예시입니다.
+    """
+    import openai
+    response = openai.ChatCompletion.create(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt_text}],
+        temperature=temperature
+    )
+    return response.choices[0].message["content"].strip()
+
+###############################################################################
+# 고급 분석(Chunk 분할 + 중요도 평가) 함수 (기존 코드 유지)
 ###############################################################################
 def chunk_text_by_heading(docx_text):
     """
@@ -106,11 +122,7 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
     
     실제 운영 환경에서는 Prompt/파싱 로직을 더 견고하게 설계해 주세요.
     """
-    from langchain.chat_models import ChatOpenAI
-    from langchain.schema import HumanMessage
-
-    llm = ChatOpenAI(model_name="gpt-4", temperature=0)
-    
+    # 아래에서는 langchain 없이 ask_gpt 함수를 직접 활용해도 됩니다.
     if language == 'korean':
         prompt = f"""
         아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 결정하고,
@@ -135,10 +147,8 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
         Importance: 4
         Summary: ...
         """
-
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages).content.strip()
-
+    response = ask_gpt(prompt, model_name="gpt-4", temperature=0.0)
+    
     importance = 3  # 기본값
     short_summary = ""
     for line in response.split('\n'):
@@ -158,11 +168,6 @@ def docx_advanced_processing(docx_text, language='korean'):
     1) 문단/heading 단위로 chunk 분할 (현재는 '===Heading:' 문자열을 통해 인위적 분할)
     2) GPT로 각 chunk 중요도/간단 요약 평가
     3) chunk별 결과를 합쳐서 최종 문자열로 반환
-    
-    장점:
-      - 문서가 길어도 chunk별로 나누어 처리 가능 -> GPT 토큰 비용 절감
-      - chunk별 중요도 표시 -> 어떤 부분을 우선적으로 학습할지 한눈에 파악 가능
-      - 문서 구조(Heading) 기반 접근 -> Heading별 요약을 별도로 확인 가능
     """
     chunks = chunk_text_by_heading(docx_text)
     combined_result = []
@@ -188,36 +193,12 @@ def docx_advanced_processing(docx_text, language='korean'):
     return final_summary
 
 ###############################################################################
-# 채팅 및 GPT 관련 함수
+# 채팅 및 GPT 관련 함수 (단순 채팅)
 ###############################################################################
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     st.session_state.chat_history.append({"role": role, "message": message})
-
-def ask_gpt_question(question, language='korean'):
-    """
-    langchain을 사용한 GPT-4 질의 응답
-    """
-    from langchain.chat_models import ChatOpenAI
-    from langchain.callbacks import StreamingStdOutCallbackHandler
-    from langchain.schema import HumanMessage
-
-    llm = ChatOpenAI(
-        model_name="gpt-4",
-        temperature=0,
-        streaming=True,
-        callbacks=[StreamingStdOutCallbackHandler()]
-    )
-
-    if language == 'korean':
-        prompt = f"다음 질문에 답변해 주세요:\n\n{question}"
-    else:
-        prompt = f"Please answer the following question:\n\n{question}"
-
-    messages = [HumanMessage(content=prompt)]
-    response = llm(messages)
-    return response.content
 
 def chat_interface():
     """
@@ -245,7 +226,7 @@ def chat_interface():
 
         # GPT 응답
         with st.spinner("GPT가 응답 중입니다..."):
-            gpt_response = ask_gpt_question(user_chat_input, 'korean')
+            gpt_response = ask_gpt(user_chat_input, model_name="gpt-4", temperature=0.0)
             add_chat_message("assistant", gpt_response)
             with st.chat_message("assistant"):
                 st.write(gpt_response)
@@ -268,65 +249,208 @@ def docx_to_text(upload_file):
         return ""
 
 ###############################################################################
+# 커뮤니티(아이디어 공유 & 투자) 탭 함수 - 확장판
+###############################################################################
+def community_investment_tab():
+    """
+    아이디어 공유 & 투자 커뮤니티 (확장 기능):
+      1) 아이디어 등록
+      2) 댓글/좋아요/싫어요
+      3) 투자 금액 모의 계산
+      4) GPT를 활용한 SWOT 분석
+      5) GPT를 활용한 주제별 분류
+    """
+    st.header("아이디어 공유 & 투자 커뮤니티")
+
+    # 세션 스테이트에 아이디어 리스트가 없으면 초기화
+    if "community_ideas" not in st.session_state:
+        # 각 아이디어는 다음 구조를 가집니다.
+        # {
+        #   "title": 아이디어 제목,
+        #   "content": 아이디어 내용,
+        #   "comments": [댓글 리스트],
+        #   "likes": 0,
+        #   "dislikes": 0,
+        #   "investment": 0  # 모의 투자금액
+        # }
+        st.session_state.community_ideas = []
+
+    # 아이디어 업로드 섹션
+    st.subheader("새로운 아이디어 제안하기")
+    idea_title = st.text_input("아이디어 제목", "")
+    idea_content = st.text_area("아이디어 내용(간략 소개)", "")
+
+    if st.button("아이디어 등록"):
+        if idea_title.strip() and idea_content.strip():
+            st.session_state.community_ideas.append({
+                "title": idea_title,
+                "content": idea_content,
+                "comments": [],
+                "likes": 0,
+                "dislikes": 0,
+                "investment": 0
+            })
+            st.success("아이디어가 등록되었습니다!")
+        else:
+            st.warning("제목과 내용을 입력하세요.")
+
+    st.write("---")
+    st.subheader("커뮤니티 아이디어 목록")
+
+    if len(st.session_state.community_ideas) == 0:
+        st.write("아직 등록된 아이디어가 없습니다.")
+    else:
+        # 전체 아이디어 목록 순회
+        for idx, idea in enumerate(st.session_state.community_ideas):
+            with st.expander(f"{idx+1}. {idea['title']}"):
+                # 아이디어 내용 표시
+                st.write(f"**내용**: {idea['content']}")
+                # 좋아요/싫어요/투자 금액/댓글 표시
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"👍 좋아요: {idea['likes']}")
+                    if st.button(f"좋아요 (아이디어 #{idx+1})"):
+                        idea["likes"] += 1
+                        st.experimental_rerun()  # 즉시 업데이트 반영
+
+                with col2:
+                    st.write(f"👎 싫어요: {idea['dislikes']}")
+                    if st.button(f"싫어요 (아이디어 #{idx+1})"):
+                        idea["dislikes"] += 1
+                        st.experimental_rerun()
+
+                with col3:
+                    st.write(f"💰 현재 투자액: {idea['investment']}")
+                    invest_amount = st.number_input(
+                        f"투자 금액 입력 (아이디어 #{idx+1})",
+                        min_value=0,
+                        step=10,
+                        key=f"investment_input_{idx}"
+                    )
+                    if st.button(f"투자하기 (아이디어 #{idx+1})"):
+                        idea["investment"] += invest_amount
+                        st.success(f"{invest_amount}만큼 투자했습니다!")
+                        st.experimental_rerun()
+
+                # 댓글 섹션
+                st.write("### 댓글")
+                if len(idea["comments"]) == 0:
+                    st.write("아직 댓글이 없습니다.")
+                else:
+                    for c_idx, comment in enumerate(idea["comments"]):
+                        st.write(f"- {comment}")
+
+                comment_text = st.text_input(
+                    f"댓글 달기 (아이디어 #{idx+1})",
+                    key=f"comment_input_{idx}"
+                )
+                if st.button(f"댓글 등록 (아이디어 #{idx+1})"):
+                    if comment_text.strip():
+                        idea["comments"].append(comment_text.strip())
+                        st.success("댓글이 등록되었습니다!")
+                        st.experimental_rerun()
+                    else:
+                        st.warning("댓글 내용을 입력하세요.")
+
+                st.write("---")
+                st.write("### GPT 추가 기능")
+
+                # 1) SWOT 분석 버튼
+                if st.button(f"SWOT 분석 (아이디어 #{idx+1})"):
+                    with st.spinner("SWOT 분석 중..."):
+                        prompt_swot = f"""
+                        아래 아이디어에 대해 간략하게 SWOT(Strengths, Weaknesses, Opportunities, Threats) 분석을 해주세요.
+                        
+                        아이디어:
+                        {idea['content']}
+                        """
+                        swot_result = ask_gpt(prompt_swot, "gpt-4", 0.3)
+                        st.write("**SWOT 분석 결과**:")
+                        st.write(swot_result)
+
+                # 2) 주제별 분류 버튼
+                # 예: 기술/푸드/교육/기타 등. GPT에게 분류를 요청
+                if st.button(f"주제별 분류 (아이디어 #{idx+1})"):
+                    with st.spinner("아이디어 주제 분류 중..."):
+                        prompt_category = f"""
+                        아래 아이디어가 어느 분야(예: 기술, 푸드, 교육, 금융, 건강, 기타)인지 추정해 주세요.
+                        간단한 근거와 함께 알려주면 감사하겠습니다.
+
+                        아이디어:
+                        {idea['content']}
+                        """
+                        category_result = ask_gpt(prompt_category, "gpt-4", 0.3)
+                        st.write("**주제별 분류 결과**:")
+                        st.write(category_result)
+
+                # 이외에도 다양한 GPT 연동 로직을 아이디어별로 추가 가능
+                st.write("---")
+
+###############################################################################
 # 메인 함수
 ###############################################################################
 def main():
     # 페이지 상단 타이틀
     st.title("studyhelper")
-    
+
     # 주의 문구
     st.warning("저작권에 유의해 파일을 업로드하세요.")
     st.info("ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 반드시 추가 확인하세요.")
 
-    # 채팅 인터페이스
-    st.write("---")
-    st.subheader("GPT-4 채팅")
-    chat_interface()
+    # 사이드바 또는 상단에 탭(라디오 버튼) 형태로 페이지 구분
+    tab = st.sidebar.radio("메뉴 선택", ("GPT 채팅", "DOCX 분석", "커뮤니티"))
 
-    # 문서 업로드 섹션 (.docx 전용)
-    st.write("---")
-    st.subheader("DOCX 문서 분석 (고급 Chunk 단위 분석)")
-    uploaded_file = st.file_uploader(
-        "DOCX 파일을 업로드하세요 (문서 내에 '===Heading:'이라는 구분자를 추가해보세요!)",
-        type=['docx']
-    )
+    if tab == "GPT 채팅":
+        st.subheader("GPT-4 채팅")
+        chat_interface()
 
-    if uploaded_file is not None:
-        filename = uploaded_file.name
-        file_bytes = uploaded_file.getvalue()
-        file_hash = hashlib.md5(file_bytes).hexdigest()
+    elif tab == "DOCX 분석":
+        st.subheader("DOCX 문서 분석 (고급 Chunk 단위 분석)")
+        uploaded_file = st.file_uploader(
+            "DOCX 파일을 업로드하세요 (문서 내에 '===Heading:'이라는 구분자를 추가해보세요!)",
+            type=['docx']
+        )
 
-        # 새 파일이 업로드되면 세션 상태 초기화
-        if ("uploaded_file_hash" not in st.session_state or
-            st.session_state.uploaded_file_hash != file_hash):
-            st.session_state.uploaded_file_hash = file_hash
-            st.session_state.extracted_text = ""
-            st.session_state.summary = ""
-            st.session_state.processed = False
+        if uploaded_file is not None:
+            filename = uploaded_file.name
+            file_bytes = uploaded_file.getvalue()
+            file_hash = hashlib.md5(file_bytes).hexdigest()
 
-        # 아직 처리 안된 상태라면, 문서 텍스트 추출 후 고급 분석
-        if not st.session_state.processed:
-            raw_text = docx_to_text(uploaded_file)
-            if raw_text.strip():
-                # 고급 분석 (chunk 분할 + 중요도/요약)
-                with st.spinner("문서 고급 분석 진행 중..."):
-                    advanced_summary = docx_advanced_processing(raw_text, language='korean')
-                    st.session_state.summary = advanced_summary
-                    st.session_state.extracted_text = raw_text
-                    st.success("DOCX 고급 분석 완료!")
-            else:
-                st.error("DOCX에서 텍스트를 추출할 수 없습니다.")
+            # 새 파일이 업로드되면 세션 상태 초기화
+            if ("uploaded_file_hash" not in st.session_state or
+                st.session_state.uploaded_file_hash != file_hash):
+                st.session_state.uploaded_file_hash = file_hash
+                st.session_state.extracted_text = ""
                 st.session_state.summary = ""
-            
-            st.session_state.processed = True
+                st.session_state.processed = False
 
-        # 결과 표시
-        if st.session_state.get("processed", False):
-            if 'summary' in st.session_state and st.session_state.summary.strip():
-                st.write("## (고급) Chunk 기반 요약 & 중요도 결과")
-                st.write(st.session_state.summary)
-            else:
-                st.write("## 요약 결과를 표시할 수 없습니다.")
+            # 아직 처리 안된 상태라면, 문서 텍스트 추출 후 고급 분석
+            if not st.session_state.processed:
+                raw_text = docx_to_text(uploaded_file)
+                if raw_text.strip():
+                    # 고급 분석 (chunk 분할 + 중요도/요약)
+                    with st.spinner("문서 고급 분석 진행 중..."):
+                        advanced_summary = docx_advanced_processing(raw_text, language='korean')
+                        st.session_state.summary = advanced_summary
+                        st.session_state.extracted_text = raw_text
+                        st.success("DOCX 고급 분석 완료!")
+                else:
+                    st.error("DOCX에서 텍스트를 추출할 수 없습니다.")
+                    st.session_state.summary = ""
+                
+                st.session_state.processed = True
+
+            # 결과 표시
+            if st.session_state.get("processed", False):
+                if 'summary' in st.session_state and st.session_state.summary.strip():
+                    st.write("## (고급) Chunk 기반 요약 & 중요도 결과")
+                    st.write(st.session_state.summary)
+                else:
+                    st.write("## 요약 결과를 표시할 수 없습니다.")
+    
+    else:
+        # "커뮤니티" 탭 (확장판)
+        community_investment_tab()
 
 if __name__ == "__main__":
     main()
