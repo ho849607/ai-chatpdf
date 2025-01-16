@@ -1,15 +1,15 @@
 import os
 import nltk
 
-# (1) NLTK_DATA 경로를 /tmp로 변경 (쓰기 가능)
+# (1) NLTK_DATA 경로를 /tmp 로 지정 (쓰기 가능)
 nltk_data_dir = "/tmp/nltk_data"
-os.makedirs(nltk_data_dir, exist_ok=True)  # 디렉토리가 없으면 생성
+os.makedirs(nltk_data_dir, exist_ok=True)  # 디렉토리 없으면 생성
 
 # NLTK가 /tmp/nltk_data를 참조하도록 설정
 os.environ["NLTK_DATA"] = nltk_data_dir
 nltk.data.path.append(nltk_data_dir)
 
-# stopwords 다운로드 시도
+# stopwords 다운로드
 nltk.download("stopwords", download_dir=nltk_data_dir)
 
 import streamlit as st
@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 import openai
 from pathlib import Path
 import hashlib
-# 뒤쪽에 nltk 재-import는 중복이지만 충돌은 없으므로 그대로 둬도 괜찮습니다.
+# 뒤쪽에 nltk를 다시 import하지만, 충돌은 없으므로 그대로 둬도 됩니다.
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -30,7 +30,7 @@ try:
 except ImportError:
     DOCX_ENABLED = False
 
-# 초기 NLTK 다운로드(존재하지 않을 때만)
+# 초기 NLTK 다운로드 (tokennizer, stopwords가 없는 경우 다운로드)
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -77,7 +77,7 @@ openai.api_type = None
 openai.api_version = None
 
 ###############################################################################
-# 버전 확인용 (로그에서 확인)
+# 버전 확인 (로그에 표시)
 ###############################################################################
 try:
     st.write(f"OpenAI 라이브러리 버전: {openai.__version__}")
@@ -127,6 +127,7 @@ def chunk_text_by_heading(docx_text):
         else:
             current_chunk.append(line)
 
+    # 마지막 chunk 처리
     if current_chunk:
         chunks.append({
             "id": chunk_id,
@@ -137,9 +138,8 @@ def chunk_text_by_heading(docx_text):
 
 def gpt_evaluate_importance(chunk_text, language='korean'):
     """
-    GPT를 이용해:
-      1) Chunk의 '중요도'를 1~5 사이 정수로 평가
-      2) 한두 문장 요약
+    1) Chunk 중요도(1~5)
+    2) 한두 문장 요약
     """
     if language == 'korean':
         prompt = f"""
@@ -183,6 +183,8 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
     return importance, short_summary
 
 def docx_advanced_processing(docx_text, language='korean'):
+    # 1) 문단/Heading 기준으로 chunk 분할
+    # 2) GPT로 각 chunk 중요도/요약
     chunks = chunk_text_by_heading(docx_text)
     combined_result = []
 
@@ -192,6 +194,7 @@ def docx_advanced_processing(docx_text, language='korean'):
         c["short_summary"] = short_summary
         combined_result.append(c)
 
+    # chunk별 결과 합침
     final_summary_parts = []
     for c in combined_result:
         part = (
@@ -226,9 +229,9 @@ def chat_interface():
             with st.chat_message("assistant"):
                 st.write(chat["message"])
 
+    # 사용자 입력 받기
     user_chat_input = st.chat_input("메시지를 입력하세요:")
     if user_chat_input:
-        # 사용자 메시지 저장
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
             st.write(user_chat_input)
@@ -291,6 +294,7 @@ def community_investment_tab():
         for idx, idea in enumerate(st.session_state.community_ideas):
             with st.expander(f"{idx+1}. {idea['title']}"):
                 st.write(f"**내용**: {idea['content']}")
+
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.write(f"👍 좋아요: {idea['likes']}")
@@ -339,6 +343,7 @@ def community_investment_tab():
                 st.write("---")
                 st.write("### GPT 추가 기능")
 
+                # SWOT 분석
                 if st.button(f"SWOT 분석 (아이디어 #{idx+1})"):
                     with st.spinner("SWOT 분석 중..."):
                         prompt_swot = f"""
@@ -351,6 +356,7 @@ def community_investment_tab():
                         st.write("**SWOT 분석 결과**:")
                         st.write(swot_result)
 
+                # 주제별 분류
                 if st.button(f"주제별 분류 (아이디어 #{idx+1})"):
                     with st.spinner("아이디어 주제 분류 중..."):
                         prompt_category = f"""
@@ -375,6 +381,7 @@ def main():
     st.warning("저작권에 유의해 파일을 업로드하세요.")
     st.info("ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 반드시 추가 확인하세요.")
 
+    # 사이드바 라디오 버튼으로 탭 구분
     tab = st.sidebar.radio("메뉴 선택", ("GPT 채팅", "DOCX 분석", "커뮤니티"))
 
     if tab == "GPT 채팅":
@@ -393,6 +400,7 @@ def main():
             file_bytes = uploaded_file.getvalue()
             file_hash = hashlib.md5(file_bytes).hexdigest()
 
+            # 새 파일 업로드 시 세션 상태 초기화
             if ("uploaded_file_hash" not in st.session_state or
                 st.session_state.uploaded_file_hash != file_hash):
                 st.session_state.uploaded_file_hash = file_hash
@@ -400,6 +408,7 @@ def main():
                 st.session_state.summary = ""
                 st.session_state.processed = False
 
+            # 아직 처리하지 않았다면 텍스트 추출 및 고급 분석
             if not st.session_state.processed:
                 raw_text = docx_to_text(uploaded_file)
                 if raw_text.strip():
@@ -414,6 +423,7 @@ def main():
 
                 st.session_state.processed = True
 
+            # 결과 표시
             if st.session_state.get("processed", False):
                 if 'summary' in st.session_state and st.session_state.summary.strip():
                     st.write("## (고급) Chunk 기반 요약 & 중요도 결과")
@@ -424,5 +434,7 @@ def main():
     else:
         community_investment_tab()
 
+
+# 메인 실행
 if __name__ == "__main__":
-    main
+    main()
