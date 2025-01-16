@@ -90,9 +90,9 @@ except:
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     """
     OpenAI API를 통한 GPT 질의 함수 (ChatCompletion).
-    system 메시지를 간단히 추가해, GPT가 역할을 인식하도록 할 수도 있습니다.
+    (구버전) openai.ChatCompletion.create(...) → (신버전) openai.chat_completions.create(...)
     """
-    response = openai.ChatCompletion.create(
+    response = openai.chat_completions.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant."},
@@ -226,6 +226,7 @@ def chat_interface():
             st.write(user_chat_input)
 
         with st.spinner("GPT가 응답 중입니다..."):
+            # 여기서도 openai.chat_completions.create(...)가 사용됨
             gpt_response = ask_gpt(user_chat_input, model_name="gpt-4", temperature=0.0)
             add_chat_message("assistant", gpt_response)
             with st.chat_message("assistant"):
@@ -239,6 +240,7 @@ def docx_to_text(upload_file):
         st.warning("docx2txt가 설치되어 있지 않아 .docx 파일을 처리할 수 없습니다.")
         return ""
     try:
+        import docx2txt
         text = docx2txt.process(BytesIO(upload_file.getvalue()))
         return text if text else ""
     except Exception as e:
