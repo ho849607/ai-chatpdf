@@ -85,15 +85,14 @@ except:
     pass
 
 ###############################################################################
-# GPT 연동 함수 (ChatCompletion → Chat Completions)
+# GPT 연동 함수 (구버전 ChatCompletion)
 ###############################################################################
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     """
-    openai>=1.59.x 이상에서:
-    (구버전) openai.ChatCompletion.create(...)
-    → (신버전) openai.chat_completions.create(...)
+    openai==0.28.x 이하 버전에서:
+    구버전 API -> openai.ChatCompletion.create(...)
     """
-    response = openai.chat_completions.create(
+    response = openai.ChatCompletion.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant."},
