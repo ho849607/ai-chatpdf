@@ -85,14 +85,14 @@ except:
     pass
 
 ###############################################################################
-# GPT 연동 함수
+# GPT 연동 함수 (ChatCompletion 마이그레이션)
 ###############################################################################
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     """
-    OpenAI API를 통한 GPT 질의 함수 (ChatCompletion).
-    (구버전) openai.ChatCompletion.create(...) → (신버전) openai.chat_completions.create(...)
+    openai>=1.0.0 이후:
+    (구버전) openai.ChatCompletion.create(...) → (신버전) openai.chat.create(...)
     """
-    response = openai.chat_completions.create(
+    response = openai.chat.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant."},
@@ -149,7 +149,7 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
         """
     else:
         prompt = f"""
-        The following text is given. Please determine how important it is (1 to 5), 
+        The following text is given. Please determine how important it is (1 to 5),
         and provide a one or two-sentence summary.
 
         Text:
@@ -226,7 +226,7 @@ def chat_interface():
             st.write(user_chat_input)
 
         with st.spinner("GPT가 응답 중입니다..."):
-            # 여기서도 openai.chat_completions.create(...)가 사용됨
+            # 마이그레이션된 ask_gpt 사용
             gpt_response = ask_gpt(user_chat_input, model_name="gpt-4", temperature=0.0)
             add_chat_message("assistant", gpt_response)
             with st.chat_message("assistant"):
