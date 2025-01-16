@@ -1,4 +1,4 @@
-langchain
+langchain>=0.0.94
 langchain-community
 langdetect
 docarray
@@ -13,7 +13,7 @@ pillow
 opencv-python
 pytesseract
 paddleocr      # 여기서 "paddleoc" → "paddleocr"로 수정
-openai
+openai>=0.27.0
 streamlit
 python-dotenv
 protobuf
