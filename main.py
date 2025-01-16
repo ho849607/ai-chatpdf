@@ -58,8 +58,8 @@ if not openai_api_key:
 openai.api_key = openai_api_key
 
 # (중요) 구버전 API 경로나 Azure 설정이 되지 않도록 아래처럼 초기화
+openai.api_base = "https://api.openai.com/v1"
 openai.api_type = None
-openai.api_base = "https://api.openai.com/v1"  # 최신 REST API 엔드포인트 강제
 openai.api_version = None
 
 ###############################################################################
