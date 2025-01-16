@@ -1,10 +1,16 @@
 import os
 import nltk
 
-# (1) NLTK_DATA 경로 지정 & stopwords 다운로드
-os.environ["NLTK_DATA"] = "/app/nltk_data"
-nltk.data.path.append("/app/nltk_data")
-nltk.download("stopwords", download_dir="/app/nltk_data")
+# (1) NLTK_DATA 경로를 /tmp로 변경 (쓰기 가능)
+nltk_data_dir = "/tmp/nltk_data"
+os.makedirs(nltk_data_dir, exist_ok=True)  # 혹시 디렉토리가 없으면 생성
+
+# NLTK가 /tmp/nltk_data를 참조하도록 설정
+os.environ["NLTK_DATA"] = nltk_data_dir
+nltk.data.path.append(nltk_data_dir)
+
+# stopwords 다운로드 시도
+nltk.download("stopwords", download_dir=nltk_data_dir)
 
 import streamlit as st
 from io import BytesIO
@@ -12,8 +18,7 @@ from dotenv import load_dotenv
 import openai
 from pathlib import Path
 import hashlib
-# 아래에서 nltk를 다시 import하지만, 이미 위에서 import 되었으니 중복 사용 가능
-# 필요 시 정리해도 괜찮습니다.
+# 뒤쪽에 nltk 재-import는 중복이긴 하지만, 충돌은 없으므로 그냥 둬도 됩니다.
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -29,14 +34,12 @@ except ImportError:
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
-    nltk.download('punkt', download_dir="/app/nltk_data")
+    nltk.download('punkt', download_dir=nltk_data_dir)
 
-# (기존) 만약 stopwords가 없으면 다운로드
-# 지금은 이미 위에서 download("stopwords")를 진행했으므로, 중복 체크만 수행
 try:
     nltk.data.find('corpora/stopwords')
 except LookupError:
-    nltk.download('stopwords', download_dir="/app/nltk_data")
+    nltk.download('stopwords', download_dir=nltk_data_dir)
 
 # 사용자 정의 한국어 스톱워드
 korean_stopwords = [
@@ -413,4 +416,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
