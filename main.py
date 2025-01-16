@@ -85,14 +85,15 @@ except:
     pass
 
 ###############################################################################
-# GPT 연동 함수 (ChatCompletion 마이그레이션)
+# GPT 연동 함수 (ChatCompletion → Chat) 
 ###############################################################################
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     """
-    openai>=1.0.0 이후:
-    (구버전) openai.ChatCompletion.create(...) → (신버전) openai.chat.create(...)
+    openai>=1.0.0 이상에서:
+    (구버전) openai.ChatCompletion.create(...)
+    → (신버전) openai.Chat.create(...)
     """
-    response = openai.chat.create(
+    response = openai.Chat.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant."},
@@ -135,6 +136,11 @@ def chunk_text_by_heading(docx_text):
     return chunks
 
 def gpt_evaluate_importance(chunk_text, language='korean'):
+    """
+    GPT를 이용해:
+      1) Chunk의 '중요도'를 1~5 사이 정수로 평가
+      2) 한두 문장 요약
+    """
     if language == 'korean':
         prompt = f"""
         아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 결정하고,
@@ -149,7 +155,7 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
         """
     else:
         prompt = f"""
-        The following text is given. Please determine how important it is (1 to 5),
+        The following text is given. Please determine how important it is (1 to 5), 
         and provide a one or two-sentence summary.
 
         Text:
@@ -211,6 +217,7 @@ def chat_interface():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
+    # 기존 채팅 이력 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
             with st.chat_message("user"):
@@ -221,12 +228,13 @@ def chat_interface():
 
     user_chat_input = st.chat_input("메시지를 입력하세요:")
     if user_chat_input:
+        # 사용자 메시지 저장
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
             st.write(user_chat_input)
 
+        # GPT 응답
         with st.spinner("GPT가 응답 중입니다..."):
-            # 마이그레이션된 ask_gpt 사용
             gpt_response = ask_gpt(user_chat_input, model_name="gpt-4", temperature=0.0)
             add_chat_message("assistant", gpt_response)
             with st.chat_message("assistant"):
@@ -334,7 +342,7 @@ def community_investment_tab():
                 if st.button(f"SWOT 분석 (아이디어 #{idx+1})"):
                     with st.spinner("SWOT 분석 중..."):
                         prompt_swot = f"""
-                        아래 아이디어에 대해 간략하게 SWOT(Strengths, Weaknesses, Opportunities, Threats) 분석을 해주세요.
+                        아래 아이디어에 대해 간략하게 SWOT(Strengths, Weaknesses, Opportunities, Threats)을 해주세요.
 
                         아이디어:
                         {idea['content']}
