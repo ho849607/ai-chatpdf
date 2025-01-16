@@ -3,13 +3,13 @@ import nltk
 
 # (1) NLTK_DATA 경로를 /tmp 로 지정 (쓰기 가능)
 nltk_data_dir = "/tmp/nltk_data"
-os.makedirs(nltk_data_dir, exist_ok=True)  # 디렉토리 없으면 생성
+os.makedirs(nltk_data_dir, exist_ok=True)  # 디렉토리가 없으면 생성
 
 # NLTK가 /tmp/nltk_data를 참조하도록 설정
 os.environ["NLTK_DATA"] = nltk_data_dir
 nltk.data.path.append(nltk_data_dir)
 
-# stopwords 다운로드
+# stopwords 다운로드 시도
 nltk.download("stopwords", download_dir=nltk_data_dir)
 
 import streamlit as st
@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 import openai
 from pathlib import Path
 import hashlib
-# 뒤쪽에 nltk를 다시 import하지만, 충돌은 없으므로 그대로 둬도 됩니다.
+# 뒤쪽에 nltk 재-import가 있어도 충돌은 없으니 그대로 둬도 됩니다.
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -85,15 +85,15 @@ except:
     pass
 
 ###############################################################################
-# GPT 연동 함수 (ChatCompletion → Chat)
+# GPT 연동 함수 (ChatCompletion → Chat Completions)
 ###############################################################################
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     """
-    openai>=1.0.0 이상에서:
+    openai>=1.59.x 이상에서:
     (구버전) openai.ChatCompletion.create(...)
-    → (신버전) openai.chat.create(...)
+    → (신버전) openai.chat_completions.create(...)
     """
-    response = openai.chat.create(
+    response = openai.chat_completions.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant."},
@@ -127,7 +127,6 @@ def chunk_text_by_heading(docx_text):
         else:
             current_chunk.append(line)
 
-    # 마지막 chunk 처리
     if current_chunk:
         chunks.append({
             "id": chunk_id,
@@ -229,7 +228,7 @@ def chat_interface():
             with st.chat_message("assistant"):
                 st.write(chat["message"])
 
-    # 사용자 입력 받기
+    # 사용자 입력
     user_chat_input = st.chat_input("메시지를 입력하세요:")
     if user_chat_input:
         add_chat_message("user", user_chat_input)
@@ -343,7 +342,6 @@ def community_investment_tab():
                 st.write("---")
                 st.write("### GPT 추가 기능")
 
-                # SWOT 분석
                 if st.button(f"SWOT 분석 (아이디어 #{idx+1})"):
                     with st.spinner("SWOT 분석 중..."):
                         prompt_swot = f"""
@@ -356,7 +354,6 @@ def community_investment_tab():
                         st.write("**SWOT 분석 결과**:")
                         st.write(swot_result)
 
-                # 주제별 분류
                 if st.button(f"주제별 분류 (아이디어 #{idx+1})"):
                     with st.spinner("아이디어 주제 분류 중..."):
                         prompt_category = f"""
