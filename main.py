@@ -3,7 +3,7 @@ import nltk
 
 # (1) NLTK_DATA 경로를 /tmp로 변경 (쓰기 가능)
 nltk_data_dir = "/tmp/nltk_data"
-os.makedirs(nltk_data_dir, exist_ok=True)  # 혹시 디렉토리가 없으면 생성
+os.makedirs(nltk_data_dir, exist_ok=True)  # 디렉토리가 없으면 생성
 
 # NLTK가 /tmp/nltk_data를 참조하도록 설정
 os.environ["NLTK_DATA"] = nltk_data_dir
@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 import openai
 from pathlib import Path
 import hashlib
-# 뒤쪽에 nltk 재-import는 중복이긴 하지만, 충돌은 없으므로 그냥 둬도 됩니다.
+# 뒤쪽에 nltk 재-import는 중복이지만 충돌은 없으므로 그대로 둬도 괜찮습니다.
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -85,15 +85,15 @@ except:
     pass
 
 ###############################################################################
-# GPT 연동 함수 (ChatCompletion → Chat) 
+# GPT 연동 함수 (ChatCompletion → Chat)
 ###############################################################################
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     """
     openai>=1.0.0 이상에서:
     (구버전) openai.ChatCompletion.create(...)
-    → (신버전) openai.Chat.create(...)
+    → (신버전) openai.chat.create(...)
     """
-    response = openai.Chat.create(
+    response = openai.chat.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant."},
@@ -155,7 +155,7 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
         """
     else:
         prompt = f"""
-        The following text is given. Please determine how important it is (1 to 5), 
+        The following text is given. Please determine how important it is (1 to 5),
         and provide a one or two-sentence summary.
 
         Text:
@@ -425,4 +425,4 @@ def main():
         community_investment_tab()
 
 if __name__ == "__main__":
-    main()
+    main
