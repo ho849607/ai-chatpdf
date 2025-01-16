@@ -57,10 +57,18 @@ if not openai_api_key:
 # OpenAI API 키 직접 설정
 openai.api_key = openai_api_key
 
-# (Azure 환경 사용 시 아래와 같은 설정이 있을 수 있으나, 지금은 주석 처리)
-# openai.api_type = "azure"
-# openai.api_base = "https://YOUR-AZURE-ENDPOINT.openai.azure.com/"
-# openai.api_version = "2023-05-15"
+# (중요) 구버전 API 경로나 Azure 설정이 되지 않도록 아래처럼 초기화
+openai.api_type = None
+openai.api_base = "https://api.openai.com/v1"  # 최신 REST API 엔드포인트 강제
+openai.api_version = None
+
+###############################################################################
+# 버전 확인용 (로그에서 확인)
+###############################################################################
+try:
+    st.write(f"OpenAI 라이브러리 버전: {openai.__version__}")
+except:
+    pass
 
 ###############################################################################
 # GPT 연동 함수
@@ -73,7 +81,6 @@ def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     response = openai.ChatCompletion.create(
         model=model_name,
         messages=[
-            # 필요 시 system 메시지에서 AI의 전반적 태도를 지정할 수 있습니다.
             {"role": "system", "content": "You are a helpful AI assistant."},
             {"role": "user", "content": prompt_text}
         ],
@@ -82,16 +89,9 @@ def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
     return response.choices[0].message["content"].strip()
 
 ###############################################################################
-# 고급 분석(Chunk 분할 + 중요도 평가) 함수 (기존 코드 유지)
+# 고급 분석(Chunk 분할 + 중요도 평가) 함수
 ###############################################################################
 def chunk_text_by_heading(docx_text):
-    """
-    [데모용 함수]
-    docx_text 안에서 '===Heading:'이라는 인위적 라벨을 기준으로 Chunk를 나눕니다.
-    
-    실제 Word 문서의 Heading(제목1, 제목2 등)을 활용하려면 python-docx 등의 라이브러리로
-    paragraph.style.name을 확인하여 분할하는 방식을 권장합니다.
-    """
     lines = docx_text.split('\n')
     chunks = []
     current_chunk = []
@@ -112,7 +112,6 @@ def chunk_text_by_heading(docx_text):
         else:
             current_chunk.append(line)
 
-    # 마지막 chunk 처리
     if current_chunk:
         chunks.append({
             "id": chunk_id,
@@ -122,11 +121,6 @@ def chunk_text_by_heading(docx_text):
     return chunks
 
 def gpt_evaluate_importance(chunk_text, language='korean'):
-    """
-    GPT를 이용해:
-      1) Chunk의 '중요도'를 1~5 사이 정수로 평가
-      2) 한두 문장 요약
-    """
     if language == 'korean':
         prompt = f"""
         아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 결정하고,
@@ -169,11 +163,6 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
     return importance, short_summary
 
 def docx_advanced_processing(docx_text, language='korean'):
-    """
-    1) 문단/heading 단위로 chunk 분할 (현재는 '===Heading:' 문자열을 통해 인위적 분할)
-    2) GPT로 각 chunk 중요도/간단 요약 평가
-    3) chunk별 결과를 합쳐서 최종 문자열로 반환
-    """
     chunks = chunk_text_by_heading(docx_text)
     combined_result = []
 
@@ -183,7 +172,6 @@ def docx_advanced_processing(docx_text, language='korean'):
         c["short_summary"] = short_summary
         combined_result.append(c)
 
-    # chunk별 요약 내용을 합침
     final_summary_parts = []
     for c in combined_result:
         part = (
@@ -198,7 +186,7 @@ def docx_advanced_processing(docx_text, language='korean'):
     return final_summary
 
 ###############################################################################
-# 채팅 및 GPT 관련 함수 (단순 채팅)
+# 채팅 인터페이스
 ###############################################################################
 def add_chat_message(role, message):
     if "chat_history" not in st.session_state:
@@ -206,13 +194,9 @@ def add_chat_message(role, message):
     st.session_state.chat_history.append({"role": role, "message": message})
 
 def chat_interface():
-    """
-    사용자와 GPT-4의 대화 인터페이스.
-    """
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # 기존 채팅 이력 표시
     for chat in st.session_state.chat_history:
         if chat["role"] == "user":
             with st.chat_message("user"):
@@ -221,15 +205,12 @@ def chat_interface():
             with st.chat_message("assistant"):
                 st.write(chat["message"])
 
-    # 입력 필드
     user_chat_input = st.chat_input("메시지를 입력하세요:")
     if user_chat_input:
-        # 사용자 메시지 저장
         add_chat_message("user", user_chat_input)
         with st.chat_message("user"):
             st.write(user_chat_input)
 
-        # GPT 응답
         with st.spinner("GPT가 응답 중입니다..."):
             gpt_response = ask_gpt(user_chat_input, model_name="gpt-4", temperature=0.0)
             add_chat_message("assistant", gpt_response)
@@ -237,12 +218,9 @@ def chat_interface():
                 st.write(gpt_response)
 
 ###############################################################################
-# DOCX 텍스트 추출 함수
+# DOCX 텍스트 추출
 ###############################################################################
 def docx_to_text(upload_file):
-    """
-    docx2txt로 DOCX 파일의 텍스트를 추출합니다.
-    """
     if not DOCX_ENABLED:
         st.warning("docx2txt가 설치되어 있지 않아 .docx 파일을 처리할 수 없습니다.")
         return ""
@@ -254,24 +232,14 @@ def docx_to_text(upload_file):
         return ""
 
 ###############################################################################
-# 커뮤니티(아이디어 공유 & 투자) 탭 함수 - 확장판
+# 커뮤니티(아이디어 공유 & 투자)
 ###############################################################################
 def community_investment_tab():
-    """
-    아이디어 공유 & 투자 커뮤니티 (확장 기능):
-      1) 아이디어 등록
-      2) 댓글/좋아요/싫어요
-      3) 투자 금액 모의 계산
-      4) GPT를 활용한 SWOT 분석
-      5) GPT를 활용한 주제별 분류
-    """
     st.header("아이디어 공유 & 투자 커뮤니티")
 
-    # 세션 스테이트에 아이디어 리스트가 없으면 초기화
     if "community_ideas" not in st.session_state:
         st.session_state.community_ideas = []
 
-    # 아이디어 업로드 섹션
     st.subheader("새로운 아이디어 제안하기")
     idea_title = st.text_input("아이디어 제목", "")
     idea_content = st.text_area("아이디어 내용(간략 소개)", "")
@@ -296,7 +264,6 @@ def community_investment_tab():
     if len(st.session_state.community_ideas) == 0:
         st.write("아직 등록된 아이디어가 없습니다.")
     else:
-        # 전체 아이디어 목록 순회
         for idx, idea in enumerate(st.session_state.community_ideas):
             with st.expander(f"{idx+1}. {idea['title']}"):
                 st.write(f"**내용**: {idea['content']}")
@@ -326,7 +293,6 @@ def community_investment_tab():
                         st.success(f"{invest_amount}만큼 투자했습니다!")
                         st.experimental_rerun()
 
-                # 댓글
                 st.write("### 댓글")
                 if len(idea["comments"]) == 0:
                     st.write("아직 댓글이 없습니다.")
