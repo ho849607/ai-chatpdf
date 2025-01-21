@@ -13,9 +13,10 @@ pillow
 opencv-python
 pytesseract
 paddleocr
-openai == 0.28
+openai==1.59.9
 streamlit
 python-dotenv
 protobuf
 JPype1
+
 
