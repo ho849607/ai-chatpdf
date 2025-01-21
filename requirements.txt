@@ -13,7 +13,7 @@ pillow
 opencv-python
 pytesseract
 paddleocr
-openai
+openai ==0.28
 streamlit
 python-dotenv
 protobuf
