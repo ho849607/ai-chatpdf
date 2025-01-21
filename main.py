@@ -52,7 +52,6 @@ english_stopwords = set(stopwords.words('english'))
 korean_stopwords_set = set(korean_stopwords)
 final_stopwords = english_stopwords.union(korean_stopwords_set)
 
-# Streamlit 페이지 설정
 st.set_page_config(page_title="studyhelper", layout="centered")
 
 ###############################################################################
@@ -71,10 +70,8 @@ if not openai_api_key:
 # OpenAI API 키 직접 설정
 openai.api_key = openai_api_key
 
-# (중요) 아래 3줄은 제거(또는 주석 처리)해서 'NoneType' 오류 방지
-# openai.api_base = "https://api.openai.com/v1"
-# openai.api_type = None
-# openai.api_version = None
+# (중요) 여기서 openai.api_base, openai.api_type, openai.api_version 설정은 제거합니다!
+# (NoneType 오류 방지)
 
 ###############################################################################
 # 버전 확인 (로그에 표시)
@@ -106,9 +103,6 @@ def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
 # 고급 분석(Chunk 분할 + 중요도 평가) 함수
 ###############################################################################
 def chunk_text_by_heading(docx_text):
-    """
-    '===Heading:' 마커를 기준으로 문단을 쪼개는 예시.
-    """
     lines = docx_text.split('\n')
     chunks = []
     current_chunk = []
@@ -138,10 +132,6 @@ def chunk_text_by_heading(docx_text):
     return chunks
 
 def gpt_evaluate_importance(chunk_text, language='korean'):
-    """
-    1) Chunk 중요도(1~5)
-    2) 한두 문장 요약
-    """
     if language == 'korean':
         prompt = f"""
         아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 결정하고,
@@ -184,10 +174,6 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
     return importance, short_summary
 
 def docx_advanced_processing(docx_text, language='korean'):
-    """
-    1) 문단/Heading 기준으로 chunk 분할
-    2) GPT로 각 chunk 중요도/요약
-    """
     chunks = chunk_text_by_heading(docx_text)
     combined_result = []
 
@@ -197,7 +183,6 @@ def docx_advanced_processing(docx_text, language='korean'):
         c["short_summary"] = short_summary
         combined_result.append(c)
 
-    # chunk별 결과 합침
     final_summary_parts = []
     for c in combined_result:
         part = (
