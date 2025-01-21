@@ -71,7 +71,7 @@ if not openai_api_key:
 # OpenAI API 키 직접 설정
 openai.api_key = openai_api_key
 
-# (중요) 아래 3줄은 제거하거나 주석 처리합니다:
+# (중요) 아래 3줄은 제거(또는 주석 처리)해서 'NoneType' 오류 방지
 # openai.api_base = "https://api.openai.com/v1"
 # openai.api_type = None
 # openai.api_version = None
@@ -106,6 +106,9 @@ def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
 # 고급 분석(Chunk 분할 + 중요도 평가) 함수
 ###############################################################################
 def chunk_text_by_heading(docx_text):
+    """
+    '===Heading:' 마커를 기준으로 문단을 쪼개는 예시.
+    """
     lines = docx_text.split('\n')
     chunks = []
     current_chunk = []
@@ -114,7 +117,6 @@ def chunk_text_by_heading(docx_text):
 
     for line in lines:
         if line.strip().startswith("===Heading:"):
-            # heading 구분
             if current_chunk:
                 chunks.append({
                     "id": chunk_id,
@@ -182,8 +184,10 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
     return importance, short_summary
 
 def docx_advanced_processing(docx_text, language='korean'):
-    # 1) 문단/Heading 기준으로 chunk 분할
-    # 2) GPT로 각 chunk 중요도/요약
+    """
+    1) 문단/Heading 기준으로 chunk 분할
+    2) GPT로 각 chunk 중요도/요약
+    """
     chunks = chunk_text_by_heading(docx_text)
     combined_result = []
 
