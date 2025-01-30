@@ -70,9 +70,6 @@ if not openai_api_key:
 # OpenAI API 키 직접 설정
 openai.api_key = openai_api_key
 
-# (중요) 여기서 openai.api_base, openai.api_type, openai.api_version 설정은 제거합니다!
-# (NoneType 오류 방지)
-
 ###############################################################################
 # GPT 연동 함수 (구버전 ChatCompletion)
 ###############################################################################
@@ -90,103 +87,6 @@ def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
         temperature=temperature
     )
     return response.choices[0].message["content"].strip()
-
-###############################################################################
-# 고급 분석(Chunk 분할 + 중요도 평가) 함수
-###############################################################################
-def chunk_text_by_heading(docx_text):
-    lines = docx_text.split('\n')
-    chunks = []
-    current_chunk = []
-    heading_title = "NoHeading"
-    chunk_id = 0
-
-    for line in lines:
-        if line.strip().startswith("===Heading:"):
-            if current_chunk:
-                chunks.append({
-                    "id": chunk_id,
-                    "heading": heading_title,
-                    "text": "\n".join(current_chunk)
-                })
-                chunk_id += 1
-                current_chunk = []
-            heading_title = line.replace("===Heading:", "").strip()
-        else:
-            current_chunk.append(line)
-
-    if current_chunk:
-        chunks.append({
-            "id": chunk_id,
-            "heading": heading_title,
-            "text": "\n".join(current_chunk)
-        })
-    return chunks
-
-def gpt_evaluate_importance(chunk_text, language='korean'):
-    if language == 'korean':
-        prompt = f"""
-        아래 텍스트가 있습니다. 이 텍스트가 전체 문서에서 얼마나 중요한지 1~5 사이 정수로 결정하고,
-        한두 문장으로 요약해 주세요.
-
-        텍스트:
-        {chunk_text}
-
-        응답 형식 예시:
-        중요도: 4
-        요약: ~~        
-        """
-    else:
-        prompt = f"""
-        The following text is given. Please determine how important it is (1 to 5),
-        and provide a one or two-sentence summary.
-
-        Text:
-        {chunk_text}
-
-        Example response format:
-        Importance: 4
-        Summary: ...
-        """
-
-    response = ask_gpt(prompt, model_name="gpt-4", temperature=0.0)
-    importance = 3
-    short_summary = ""
-
-    for line in response.split('\n'):
-        if "중요도:" in line or "Importance:" in line:
-            try:
-                number_str = line.split(':')[-1].strip()
-                importance = int(number_str)
-            except:
-                pass
-        if "요약:" in line or "Summary:" in line:
-            short_summary = line.split(':', 1)[-1].strip()
-
-    return importance, short_summary
-
-def docx_advanced_processing(docx_text, language='korean'):
-    chunks = chunk_text_by_heading(docx_text)
-    combined_result = []
-
-    for c in chunks:
-        importance, short_summary = gpt_evaluate_importance(c["text"], language=language)
-        c["importance"] = importance
-        c["short_summary"] = short_summary
-        combined_result.append(c)
-
-    final_summary_parts = []
-    for c in combined_result:
-        part = (
-            f"=== [Chunk #{c['id']}] Heading: {c['heading']} ===\n"
-            f"중요도: {c['importance']}\n"
-            f"요약: {c['short_summary']}\n"
-            f"원문 일부:\n{c['text'][:200]}...\n"
-        )
-        final_summary_parts.append(part)
-
-    final_summary = "\n".join(final_summary_parts)
-    return final_summary
 
 ###############################################################################
 # 채팅 인터페이스
@@ -222,7 +122,7 @@ def chat_interface():
                 st.write(gpt_response)
 
 ###############################################################################
-# DOCX 텍스트 추출
+# DOCX 텍스트 추출 + 간단한 GPT 분석 (자동)
 ###############################################################################
 def docx_to_text(upload_file):
     if not DOCX_ENABLED:
@@ -235,6 +135,22 @@ def docx_to_text(upload_file):
     except Exception as e:
         st.error(f"DOCX 파일 처리 중 오류가 발생했습니다: {e}")
         return ""
+
+def analyze_docx_text(docx_text):
+    """
+    docx 텍스트가 업로드되면 자동으로 핵심 내용, 특징, 개선점 등을 요약하여
+    보여주는 간단한 예시 GPT 분석 함수.
+    """
+    prompt = f"""
+    아래는 사용자가 업로드한 DOCX 원본 텍스트입니다.
+    주요 핵심 내용, 중요한 아이디어나 요점이 있다면 알려주세요.
+    간단한 요약과 함께 추가적인 분석 및 개선사항도 제안해 주세요.
+
+    원문:
+    {docx_text}
+    """
+    analysis = ask_gpt(prompt, "gpt-4", 0.3)
+    return analysis
 
 ###############################################################################
 # 커뮤니티(아이디어 공유 & 투자)
@@ -251,15 +167,32 @@ def community_investment_tab():
 
     if st.button("아이디어 등록"):
         if idea_title.strip() and idea_content.strip():
-            st.session_state.community_ideas.append({
+            # 아이디어 등록
+            new_idea = {
                 "title": idea_title,
                 "content": idea_content,
                 "comments": [],
                 "likes": 0,
                 "dislikes": 0,
                 "investment": 0
-            })
-            st.success("아이디어가 등록되었습니다!")
+            }
+
+            # 1) 아이디어 자동 분석/개선 요약 (사용자가 별도 지시 없이 즉시)
+            with st.spinner("아이디어 분석/개선 중..."):
+                auto_analysis_prompt = f"""
+                다음 아이디어를 짧게 분석하고, 핵심 내용을 요약한 뒤 
+                개선점을 제안해 주세요.
+
+                아이디어:
+                {idea_content}
+                """
+                analysis_result = ask_gpt(auto_analysis_prompt, "gpt-4", 0.3)
+                new_idea["auto_analysis"] = analysis_result
+
+            # 등록
+            st.session_state.community_ideas.append(new_idea)
+            st.success("아이디어가 등록되었습니다! (자동 분석/개선 결과 포함)")
+
         else:
             st.warning("제목과 내용을 입력하세요.")
 
@@ -272,8 +205,13 @@ def community_investment_tab():
         for idx, idea in enumerate(st.session_state.community_ideas):
             with st.expander(f"{idx+1}. {idea['title']}"):
                 st.write(f"**내용**: {idea['content']}")
+                # 자동 분석/개선 결과가 있다면 표시
+                if "auto_analysis" in idea and idea["auto_analysis"].strip():
+                    st.write("**AI 자동 분석/개선 요약**:")
+                    st.write(idea["auto_analysis"])
 
-                col1, col2, col3 = st.columns(3)
+                # 3개 컬럼(좋아요/싫어요/투자)
+                col1, col2, col3, col4 = st.columns([1,1,2,1])
                 with col1:
                     st.write(f"👍 좋아요: {idea['likes']}")
                     if st.button(f"좋아요 (아이디어 #{idx+1})"):
@@ -289,7 +227,7 @@ def community_investment_tab():
                 with col3:
                     st.write(f"💰 현재 투자액: {idea['investment']}")
                     invest_amount = st.number_input(
-                        f"투자 금액 입력 (아이디어 #{idx+1})",
+                        f"투자 금액 (아이디어 #{idx+1})",
                         min_value=0,
                         step=10,
                         key=f"investment_input_{idx}"
@@ -299,6 +237,13 @@ def community_investment_tab():
                         st.success(f"{invest_amount}만큼 투자했습니다!")
                         st.experimental_rerun()
 
+                # 휴지통 아이콘(🗑)으로 삭제
+                with col4:
+                    if st.button(f"🗑 (아이디어 #{idx+1})"):
+                        st.session_state.community_ideas.pop(idx)
+                        st.experimental_rerun()
+
+                # 댓글
                 st.write("### 댓글")
                 if len(idea["comments"]) == 0:
                     st.write("아직 댓글이 없습니다.")
@@ -319,7 +264,7 @@ def community_investment_tab():
                         st.warning("댓글 내용을 입력하세요.")
 
                 st.write("---")
-                st.write("### GPT 추가 기능")
+                st.write("### (추가) GPT 버튼 기능들")
 
                 if st.button(f"SWOT 분석 (아이디어 #{idx+1})"):
                     with st.spinner("SWOT 분석 중..."):
@@ -346,10 +291,8 @@ def community_investment_tab():
                         st.write("**주제별 분류 결과**:")
                         st.write(category_result)
 
-                # 사용자가 입력한 아이디어를 개선/분석하는 기능 추가
-                st.write("---")
-                if st.button(f"AI 아이디어 개선/분석 (아이디어 #{idx+1})"):
-                    with st.spinner("AI가 아이디어 개선/분석 중..."):
+                if st.button(f"AI 아이디어 추가 개선 (아이디어 #{idx+1})"):
+                    with st.spinner("AI가 아이디어 추가 개선/분석 중..."):
                         prompt_improve = f"""
                         아래 아이디어가 있습니다. 이 아이디어를 좀 더 구체적이고 발전된 방향으로 개선하거나 
                         보완할 점, 참고해야 할 사항, 필요한 기술이나 리소스 등을 제안해 주세요.
@@ -358,7 +301,7 @@ def community_investment_tab():
                         {idea['content']}
                         """
                         improve_result = ask_gpt(prompt_improve, "gpt-4", 0.3)
-                        st.write("**AI 개선/분석 결과**:")
+                        st.write("**AI 추가 개선/분석 결과**:")
                         st.write(improve_result)
 
                 st.write("---")
@@ -380,14 +323,11 @@ def main():
         chat_interface()
 
     elif tab == "DOCX 분석":
-        st.subheader("DOCX 문서 분석 (고급 Chunk 단위 분석)")
-        uploaded_file = st.file_uploader(
-            "DOCX 파일을 업로드하세요 (문서 내에 '===Heading:'이라는 구분자를 추가해보세요!)",
-            type=['docx']
-        )
+        st.subheader("DOCX 문서 분석")
+        uploaded_file = st.file_uploader("DOCX 파일을 업로드하세요", type=['docx'])
 
         if uploaded_file is not None:
-            filename = uploaded_file.name
+            # 파일 해시 계산 (새 파일인지 판단용)
             file_bytes = uploaded_file.getvalue()
             file_hash = hashlib.md5(file_bytes).hexdigest()
 
@@ -396,31 +336,33 @@ def main():
                 st.session_state.uploaded_file_hash != file_hash):
                 st.session_state.uploaded_file_hash = file_hash
                 st.session_state.extracted_text = ""
-                st.session_state.summary = ""
+                st.session_state.docx_analysis = ""
                 st.session_state.processed = False
 
-            # 아직 처리하지 않았다면 텍스트 추출 및 고급 분석
+            # 아직 처리하지 않았다면 텍스트 추출 및 분석
             if not st.session_state.processed:
                 raw_text = docx_to_text(uploaded_file)
                 if raw_text.strip():
-                    with st.spinner("문서 고급 분석 진행 중..."):
-                        advanced_summary = docx_advanced_processing(raw_text, language='korean')
-                        st.session_state.summary = advanced_summary
-                        st.session_state.extracted_text = raw_text
-                        st.success("DOCX 고급 분석 완료!")
+                    st.session_state.extracted_text = raw_text
+                    st.success("DOCX 텍스트 추출 완료!")
+                    with st.spinner("문서 핵심내용 분석 중..."):
+                        analysis_result = analyze_docx_text(raw_text)
+                        st.session_state.docx_analysis = analysis_result
                 else:
                     st.error("DOCX에서 텍스트를 추출할 수 없습니다.")
-                    st.session_state.summary = ""
 
                 st.session_state.processed = True
 
             # 결과 표시
             if st.session_state.get("processed", False):
-                if 'summary' in st.session_state and st.session_state.summary.strip():
-                    st.write("## (고급) Chunk 기반 요약 & 중요도 결과")
-                    st.write(st.session_state.summary)
+                if 'extracted_text' in st.session_state and st.session_state.extracted_text.strip():
+                    st.write("## 추출된 문서 내용")
+                    st.write(st.session_state.extracted_text)
+                    if 'docx_analysis' in st.session_state and st.session_state.docx_analysis.strip():
+                        st.write("## GPT 분석 결과")
+                        st.write(st.session_state.docx_analysis)
                 else:
-                    st.write("## 요약 결과를 표시할 수 없습니다.")
+                    st.write("## 추출 결과를 표시할 수 없습니다.")
 
     else:
         community_investment_tab()
