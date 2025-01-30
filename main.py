@@ -74,14 +74,6 @@ openai.api_key = openai_api_key
 # (NoneType 오류 방지)
 
 ###############################################################################
-# 버전 확인 (로그에 표시)
-###############################################################################
-try:
-    st.write(f"OpenAI 라이브러리 버전: {openai.__version__}")
-except:
-    pass
-
-###############################################################################
 # GPT 연동 함수 (구버전 ChatCompletion)
 ###############################################################################
 def ask_gpt(prompt_text, model_name="gpt-4", temperature=0.0):
@@ -142,7 +134,7 @@ def gpt_evaluate_importance(chunk_text, language='korean'):
 
         응답 형식 예시:
         중요도: 4
-        요약: ~~
+        요약: ~~        
         """
     else:
         prompt = f"""
@@ -353,6 +345,21 @@ def community_investment_tab():
                         category_result = ask_gpt(prompt_category, "gpt-4", 0.3)
                         st.write("**주제별 분류 결과**:")
                         st.write(category_result)
+
+                # 사용자가 입력한 아이디어를 개선/분석하는 기능 추가
+                st.write("---")
+                if st.button(f"AI 아이디어 개선/분석 (아이디어 #{idx+1})"):
+                    with st.spinner("AI가 아이디어 개선/분석 중..."):
+                        prompt_improve = f"""
+                        아래 아이디어가 있습니다. 이 아이디어를 좀 더 구체적이고 발전된 방향으로 개선하거나 
+                        보완할 점, 참고해야 할 사항, 필요한 기술이나 리소스 등을 제안해 주세요.
+
+                        아이디어:
+                        {idea['content']}
+                        """
+                        improve_result = ask_gpt(prompt_improve, "gpt-4", 0.3)
+                        st.write("**AI 개선/분석 결과**:")
+                        st.write(improve_result)
 
                 st.write("---")
 
