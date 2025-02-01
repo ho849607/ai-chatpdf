@@ -122,7 +122,7 @@ def chat_interface():
                 st.write(gpt_response)
 
 ###############################################################################
-# DOCX 텍스트 추출 + 간단한 GPT 분석 (자동)
+# DOCX 텍스트 추출 함수 (기존) - docx 파일 전용
 ###############################################################################
 def docx_to_text(upload_file):
     if not DOCX_ENABLED:
@@ -136,6 +136,76 @@ def docx_to_text(upload_file):
         st.error(f"DOCX 파일 처리 중 오류가 발생했습니다: {e}")
         return ""
 
+###############################################################################
+# 파일 형식에 따른 텍스트 추출 함수 (docx와 pdf 지원)
+###############################################################################
+def extract_text_from_file(upload_file):
+    filename = upload_file.name
+    ext = filename.split('.')[-1].lower()
+    if ext == "docx":
+        return docx_to_text(upload_file)
+    elif ext == "pdf":
+        try:
+            from PyPDF2 import PdfReader
+        except ImportError:
+            st.warning("PyPDF2가 설치되어 있지 않아 PDF 파일을 처리할 수 없습니다.")
+            return ""
+        try:
+            reader = PdfReader(BytesIO(upload_file.getvalue()))
+            text = ""
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+            return text.strip()
+        except Exception as e:
+            st.error(f"PDF 파일 처리 중 오류가 발생했습니다: {e}")
+            return ""
+    else:
+        st.error("지원하지 않는 파일 형식입니다. 지원되는 형식: docx, pdf.")
+        return ""
+
+###############################################################################
+# GPT를 이용한 문서 분석 함수 (요약, 중요 내용 추출, 질문 생성)
+###############################################################################
+def analyze_document_text(doc_text):
+    # 문서 요약
+    prompt_summary = f"""
+    아래 문서를 읽고, 핵심 내용을 간략하게 요약해 주세요.
+    
+    문서:
+    {doc_text}
+    """
+    summary = ask_gpt(prompt_summary, "gpt-4", 0.3)
+    
+    # 중요한 내용 추출
+    prompt_important = f"""
+    아래 문서에서 중요한 정보, 핵심 아이디어, 그리고 주목할 만한 내용을 추출해 주세요.
+    
+    문서:
+    {doc_text}
+    """
+    important_content = ask_gpt(prompt_important, "gpt-4", 0.3)
+    
+    # 질문 생성 (사용자가 스스로 생각해볼 수 있는 질문)
+    prompt_questions = f"""
+    위 문서를 기반으로 독자가 스스로 답변해 볼 수 있는 질문 3~5개를 생성해 주세요.
+    질문들은 문서의 핵심 내용과 관련되어야 합니다.
+    
+    문서:
+    {doc_text}
+    """
+    questions = ask_gpt(prompt_questions, "gpt-4", 0.3)
+    
+    return {
+        "summary": summary,
+        "important_content": important_content,
+        "questions": questions
+    }
+
+###############################################################################
+# 기존 DOCX 분석 함수 (간단 분석 예시) – 참고용으로 남겨둠
+###############################################################################
 def analyze_docx_text(docx_text):
     """
     docx 텍스트가 업로드되면 자동으로 핵심 내용, 특징, 개선점 등을 요약하여
@@ -323,8 +393,8 @@ def main():
         chat_interface()
 
     elif tab == "DOCX 분석":
-        st.subheader("DOCX 문서 분석")
-        uploaded_file = st.file_uploader("DOCX 파일을 업로드하세요", type=['docx'])
+        st.subheader("문서 분석 (DOCX, PDF 파일 지원)")
+        uploaded_file = st.file_uploader("DOCX 또는 PDF 파일을 업로드하세요", type=['docx', 'pdf'])
 
         if uploaded_file is not None:
             # 파일 해시 계산 (새 파일인지 판단용)
@@ -336,20 +406,20 @@ def main():
                 st.session_state.uploaded_file_hash != file_hash):
                 st.session_state.uploaded_file_hash = file_hash
                 st.session_state.extracted_text = ""
-                st.session_state.docx_analysis = ""
+                st.session_state.doc_analysis = {}
                 st.session_state.processed = False
 
-            # 아직 처리하지 않았다면 텍스트 추출 및 분석
+            # 아직 처리하지 않았다면 텍스트 추출 및 분석 (업로드와 동시에 자동 진행)
             if not st.session_state.processed:
-                raw_text = docx_to_text(uploaded_file)
+                raw_text = extract_text_from_file(uploaded_file)
                 if raw_text.strip():
                     st.session_state.extracted_text = raw_text
-                    st.success("DOCX 텍스트 추출 완료!")
-                    with st.spinner("문서 핵심내용 분석 중..."):
-                        analysis_result = analyze_docx_text(raw_text)
-                        st.session_state.docx_analysis = analysis_result
+                    st.success("파일 텍스트 추출 완료!")
+                    with st.spinner("문서 분석 중 (요약, 중요 내용 추출, 질문 생성)..."):
+                        analysis_result = analyze_document_text(raw_text)
+                        st.session_state.doc_analysis = analysis_result
                 else:
-                    st.error("DOCX에서 텍스트를 추출할 수 없습니다.")
+                    st.error("파일에서 텍스트를 추출할 수 없습니다.")
 
                 st.session_state.processed = True
 
@@ -358,9 +428,14 @@ def main():
                 if 'extracted_text' in st.session_state and st.session_state.extracted_text.strip():
                     st.write("## 추출된 문서 내용")
                     st.write(st.session_state.extracted_text)
-                    if 'docx_analysis' in st.session_state and st.session_state.docx_analysis.strip():
-                        st.write("## GPT 분석 결과")
-                        st.write(st.session_state.docx_analysis)
+                    if 'doc_analysis' in st.session_state and st.session_state.doc_analysis:
+                        analysis_result = st.session_state.doc_analysis
+                        st.write("## 요약")
+                        st.write(analysis_result.get("summary", ""))
+                        st.write("## 중요 내용")
+                        st.write(analysis_result.get("important_content", ""))
+                        st.write("## 생성된 질문")
+                        st.write(analysis_result.get("questions", ""))
                 else:
                     st.write("## 추출 결과를 표시할 수 없습니다.")
 
