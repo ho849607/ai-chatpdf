@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 import openai
 from pathlib import Path
 import hashlib
+
 # 뒤쪽에 nltk 재-import가 있어도 충돌은 없으니 그대로 둬도 됩니다.
 import nltk
 from nltk.tokenize import word_tokenize
@@ -29,6 +30,13 @@ try:
     DOCX_ENABLED = True
 except ImportError:
     DOCX_ENABLED = False
+
+# PyPDF2 설치 확인
+try:
+    import PyPDF2
+    PDF_ENABLED = True
+except ImportError:
+    PDF_ENABLED = False
 
 # 초기 NLTK 다운로드 (tokenizer, stopwords가 없는 경우 다운로드)
 try:
@@ -122,7 +130,7 @@ def chat_interface():
                 st.write(gpt_response)
 
 ###############################################################################
-# DOCX 텍스트 추출 함수 (기존) - docx 파일 전용
+# DOCX 텍스트 추출 함수 - docx 파일 전용
 ###############################################################################
 def docx_to_text(upload_file):
     if not DOCX_ENABLED:
@@ -142,15 +150,19 @@ def docx_to_text(upload_file):
 def extract_text_from_file(upload_file):
     filename = upload_file.name
     ext = filename.split('.')[-1].lower()
+
     if ext == "docx":
+        # DOCX 처리
         return docx_to_text(upload_file)
+
     elif ext == "pdf":
-        try:
-            from PyPDF2 import PdfReader
-        except ImportError:
-            st.warning("PyPDF2가 설치되어 있지 않아 PDF 파일을 처리할 수 없습니다.")
+        # PDF 처리
+        if not PDF_ENABLED:
+            st.error("PyPDF2가 설치되어 있지 않아 PDF 파일을 처리할 수 없습니다. "
+                     "설치 후 다시 시도해주세요. (예: pip install PyPDF2)")
             return ""
         try:
+            from PyPDF2 import PdfReader
             reader = PdfReader(BytesIO(upload_file.getvalue()))
             text = ""
             for page in reader.pages:
@@ -177,7 +189,7 @@ def analyze_document_text(doc_text):
     {doc_text}
     """
     summary = ask_gpt(prompt_summary, "gpt-4", 0.3)
-    
+
     # 중요한 내용 추출
     prompt_important = f"""
     아래 문서에서 중요한 정보, 핵심 아이디어, 그리고 주목할 만한 내용을 추출해 주세요.
@@ -186,7 +198,7 @@ def analyze_document_text(doc_text):
     {doc_text}
     """
     important_content = ask_gpt(prompt_important, "gpt-4", 0.3)
-    
+
     # 질문 생성 (사용자가 스스로 생각해볼 수 있는 질문)
     prompt_questions = f"""
     위 문서를 기반으로 독자가 스스로 답변해 볼 수 있는 질문 3~5개를 생성해 주세요.
@@ -196,7 +208,7 @@ def analyze_document_text(doc_text):
     {doc_text}
     """
     questions = ask_gpt(prompt_questions, "gpt-4", 0.3)
-    
+
     return {
         "summary": summary,
         "important_content": important_content,
@@ -204,7 +216,7 @@ def analyze_document_text(doc_text):
     }
 
 ###############################################################################
-# 기존 DOCX 분석 함수 (간단 분석 예시) – 참고용으로 남겨둠
+# (참고용) 기존 DOCX 분석 함수 - 간단 예시
 ###############################################################################
 def analyze_docx_text(docx_text):
     """
@@ -237,7 +249,6 @@ def community_investment_tab():
 
     if st.button("아이디어 등록"):
         if idea_title.strip() and idea_content.strip():
-            # 아이디어 등록
             new_idea = {
                 "title": idea_title,
                 "content": idea_content,
@@ -247,7 +258,7 @@ def community_investment_tab():
                 "investment": 0
             }
 
-            # 1) 아이디어 자동 분석/개선 요약 (사용자가 별도 지시 없이 즉시)
+            # AI 분석/개선 요약 (자동)
             with st.spinner("아이디어 분석/개선 중..."):
                 auto_analysis_prompt = f"""
                 다음 아이디어를 짧게 분석하고, 핵심 내용을 요약한 뒤 
@@ -259,10 +270,8 @@ def community_investment_tab():
                 analysis_result = ask_gpt(auto_analysis_prompt, "gpt-4", 0.3)
                 new_idea["auto_analysis"] = analysis_result
 
-            # 등록
             st.session_state.community_ideas.append(new_idea)
             st.success("아이디어가 등록되었습니다! (자동 분석/개선 결과 포함)")
-
         else:
             st.warning("제목과 내용을 입력하세요.")
 
@@ -275,7 +284,7 @@ def community_investment_tab():
         for idx, idea in enumerate(st.session_state.community_ideas):
             with st.expander(f"{idx+1}. {idea['title']}"):
                 st.write(f"**내용**: {idea['content']}")
-                # 자동 분석/개선 결과가 있다면 표시
+                # 자동 분석/개선 결과
                 if "auto_analysis" in idea and idea["auto_analysis"].strip():
                     st.write("**AI 자동 분석/개선 요약**:")
                     st.write(idea["auto_analysis"])
@@ -307,7 +316,7 @@ def community_investment_tab():
                         st.success(f"{invest_amount}만큼 투자했습니다!")
                         st.experimental_rerun()
 
-                # 휴지통 아이콘(🗑)으로 삭제
+                # 휴지통 버튼으로 삭제
                 with col4:
                     if st.button(f"🗑 (아이디어 #{idx+1})"):
                         st.session_state.community_ideas.pop(idx)
@@ -385,7 +394,7 @@ def main():
     st.warning("저작권에 유의해 파일을 업로드하세요.")
     st.info("ChatGPT는 실수를 할 수 있습니다. 중요한 정보를 반드시 추가 확인하세요.")
 
-    # 사이드바 라디오 버튼으로 탭 구분
+    # 사이드바에서 탭 구분
     tab = st.sidebar.radio("메뉴 선택", ("GPT 채팅", "DOCX 분석", "커뮤니티"))
 
     if tab == "GPT 채팅":
@@ -397,11 +406,10 @@ def main():
         uploaded_file = st.file_uploader("DOCX 또는 PDF 파일을 업로드하세요", type=['docx', 'pdf'])
 
         if uploaded_file is not None:
-            # 파일 해시 계산 (새 파일인지 판단용)
             file_bytes = uploaded_file.getvalue()
             file_hash = hashlib.md5(file_bytes).hexdigest()
 
-            # 새 파일 업로드 시 세션 상태 초기화
+            # 새 파일인지 판별
             if ("uploaded_file_hash" not in st.session_state or
                 st.session_state.uploaded_file_hash != file_hash):
                 st.session_state.uploaded_file_hash = file_hash
@@ -409,7 +417,7 @@ def main():
                 st.session_state.doc_analysis = {}
                 st.session_state.processed = False
 
-            # 아직 처리하지 않았다면 텍스트 추출 및 분석 (업로드와 동시에 자동 진행)
+            # 아직 처리하지 않았다면 (업로드와 동시에 자동 진행)
             if not st.session_state.processed:
                 raw_text = extract_text_from_file(uploaded_file)
                 if raw_text.strip():
@@ -420,15 +428,15 @@ def main():
                         st.session_state.doc_analysis = analysis_result
                 else:
                     st.error("파일에서 텍스트를 추출할 수 없습니다.")
-
                 st.session_state.processed = True
 
             # 결과 표시
             if st.session_state.get("processed", False):
-                if 'extracted_text' in st.session_state and st.session_state.extracted_text.strip():
+                if st.session_state.extracted_text.strip():
                     st.write("## 추출된 문서 내용")
                     st.write(st.session_state.extracted_text)
-                    if 'doc_analysis' in st.session_state and st.session_state.doc_analysis:
+
+                    if st.session_state.doc_analysis:
                         analysis_result = st.session_state.doc_analysis
                         st.write("## 요약")
                         st.write(analysis_result.get("summary", ""))
@@ -441,7 +449,6 @@ def main():
 
     else:
         community_investment_tab()
-
 
 if __name__ == "__main__":
     main()
