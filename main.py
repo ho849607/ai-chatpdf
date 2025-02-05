@@ -60,7 +60,7 @@ def chat_with_gpt(user_text):
 # Streamlit UI
 # ========================
 def main():
-    st.title("StudyHelper (Python 버전)")
+    st.title("StudyHelper")
 
     menu = st.sidebar.radio("메뉴", ["GPT 채팅", "DOCX 분석", "커뮤니티"])
 
