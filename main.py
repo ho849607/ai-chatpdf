@@ -31,6 +31,9 @@ class CommunityIdea:
         investment=0,
         comments=None,
         team_members=None,
+        # 새로 추가한 필드: 유저별 좋아요/싫어요 관리를 위해
+        liked_users=None,
+        disliked_users=None,
     ):
         self.title = title
         self.content = content
@@ -42,9 +45,11 @@ class CommunityIdea:
         self.team_members = team_members if team_members else []
         self.swot_analysis = ""
         self.customer_needs = ""
-        # 추가: MERCE 및 BMC 분석 결과
         self.merce_analysis = ""
         self.bmc_analysis = ""
+        # 좋아요/싫어요 중복 방지를 위한 유저 목록
+        self.liked_users = liked_users if liked_users else []
+        self.disliked_users = disliked_users if disliked_users else []
 
 # -------------------------
 # JSON 파일로 저장/로드
@@ -71,6 +76,8 @@ def load_ideas():
             investment=item.get("investment", 0),
             comments=item.get("comments", []),
             team_members=item.get("team_members", []),
+            liked_users=item.get("liked_users", []),
+            disliked_users=item.get("disliked_users", []),
         )
         idea.swot_analysis = item.get("swot_analysis", "")
         idea.customer_needs = item.get("customer_needs", "")
@@ -86,8 +93,8 @@ def save_ideas(ideas):
             "title": idea.title,
             "content": idea.content,
             "auto_analysis": idea.auto_analysis,
-            "likes": idea.likes,
-            "dislikes": idea.dislikes,
+            "likes": idea.likes,  # (기존 likes 필드)
+            "dislikes": idea.dislikes,  # (기존 dislikes 필드)
             "investment": idea.investment,
             "comments": idea.comments,
             "team_members": idea.team_members,
@@ -95,6 +102,9 @@ def save_ideas(ideas):
             "customer_needs": idea.customer_needs,
             "merce_analysis": idea.merce_analysis,
             "bmc_analysis": idea.bmc_analysis,
+            # 새로 추가한 필드
+            "liked_users": idea.liked_users,
+            "disliked_users": idea.disliked_users,
         })
     try:
         with open(IDEA_FILE, "w", encoding="utf-8") as f:
@@ -105,7 +115,6 @@ def save_ideas(ideas):
 # -------------------------
 # 세션 초기화
 # -------------------------
-# 매 페이지 로드시 파일에서 최신 아이디어를 불러오도록 수정
 st.session_state["community_ideas"] = load_ideas()
 
 if "chat_history" not in st.session_state:
@@ -129,7 +138,7 @@ if "user_profile" not in st.session_state:
     }
 
 # -------------------------
-# GPT 호출 함수 (max_tokens 늘림)
+# GPT 호출 함수
 # -------------------------
 def ask_gpt(prompt, max_tokens=600, temperature=0.7):
     if not openai.api_key:
@@ -186,11 +195,6 @@ def parse_file(uploaded_file):
 # 팀원 추천 함수 (예시)
 # -------------------------
 def recommend_team_for_user(user_profile, idea):
-    """
-    사용자의 경력 및 선호 데이터를 바탕으로 아이디어와의 적합도를 평가하여 추천 메시지를 반환.
-    실제 구현에서는 AI 분석 또는 규칙 기반 추천 알고리즘을 적용할 수 있음.
-    """
-    # 예시: 사용자의 선호에 "핀테크"가 포함되어 있고, 아이디어 내용에 "핀테크"가 언급되면 추천
     if "핀테크" in user_profile["preferences"] and "핀테크" in idea.content:
         return "이 아이디어는 귀하의 핀테크 선호와 잘 맞습니다!"
     else:
@@ -298,6 +302,7 @@ def run_file_analysis():
 def run_community_page():
     st.subheader("커뮤니티: 아이디어 공유 & 투자")
 
+    # 새 아이디어 등록 폼
     with st.form(key="idea_form", clear_on_submit=True):
         title = st.text_input("아이디어 제목")
         content = st.text_area("아이디어 내용")
@@ -324,7 +329,6 @@ def run_community_page():
         new_idea.merce_analysis = merce_result
         new_idea.bmc_analysis = bmc_result
 
-        # 파일에 저장된 기존 아이디어와 합쳐서 저장
         ideas = load_ideas()
         ideas.append(new_idea)
         st.session_state["community_ideas"] = ideas
@@ -339,6 +343,7 @@ def run_community_page():
         return
 
     for idx, idea in enumerate(ideas):
+        # 댓글 달자마자 보이게 하려면 expanded=True 로 해도 됨
         with st.expander(f"{idx+1}. {idea.title}", expanded=False):
             st.write(f"**내용**: {idea.content}")
 
@@ -355,19 +360,37 @@ def run_community_page():
                 st.markdown("**고객(소비자) 분석:**")
                 st.write(idea.customer_needs)
 
+            # 좋아요/싫어요는 유저 중복 방지
+            like_count = len(idea.liked_users)
+            dislike_count = len(idea.disliked_users)
+
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.write(f"👍 {idea.likes}")
+                st.write(f"👍 {like_count}")
                 if st.button("좋아요", key=f"like_{idx}"):
-                    idea.likes += 1
+                    username = st.session_state["user_profile"]["username"]
+                    # 싫어요를 누른 적 있다면 해제
+                    if username in idea.disliked_users:
+                        idea.disliked_users.remove(username)
+                    # 아직 좋아요를 누르지 않았다면 추가
+                    if username not in idea.liked_users:
+                        idea.liked_users.append(username)
                     save_ideas(ideas)
                     st.experimental_rerun()
+
             with col2:
-                st.write(f"👎 {idea.dislikes}")
+                st.write(f"👎 {dislike_count}")
                 if st.button("싫어요", key=f"dislike_{idx}"):
-                    idea.dislikes += 1
+                    username = st.session_state["user_profile"]["username"]
+                    # 좋아요를 누른 적 있다면 해제
+                    if username in idea.liked_users:
+                        idea.liked_users.remove(username)
+                    # 아직 싫어요를 누르지 않았다면 추가
+                    if username not in idea.disliked_users:
+                        idea.disliked_users.append(username)
                     save_ideas(ideas)
                     st.experimental_rerun()
+
             with col3:
                 st.write(f"💰 {idea.investment}")
                 if st.button("투자 +100", key=f"invest_{idx}"):
@@ -375,20 +398,22 @@ def run_community_page():
                     save_ideas(ideas)
                     st.experimental_rerun()
 
+            # 팀원 목록
             st.write("### 팀원 목록")
             if not idea.team_members:
                 st.write("아직 팀원이 없습니다.")
             else:
                 for member in idea.team_members:
                     st.write(f"- {member}")
+
             if st.button("팀원 합류", key=f"join_{idx}"):
-                # 사용자 프로필과 아이디어를 기반으로 팀 매칭 추천 (예시)
                 recommendation = recommend_team_for_user(st.session_state["user_profile"], idea)
                 idea.team_members.append(st.session_state["user_profile"]["username"])
                 save_ideas(ideas)
                 st.success(f"팀에 합류했습니다! 추천: {recommendation}")
                 st.experimental_rerun()
 
+            # 댓글 목록
             st.write("### 댓글")
             if not idea.comments:
                 st.write("댓글이 없습니다.")
@@ -396,6 +421,7 @@ def run_community_page():
                 for comment in idea.comments:
                     st.write(f"- {comment}")
 
+            # 새 댓글 달기
             new_comment = st.text_input("댓글 달기", key=f"comment_{idx}")
             if st.button("댓글 등록", key=f"submit_comment_{idx}"):
                 if new_comment.strip():
@@ -405,6 +431,7 @@ def run_community_page():
                 else:
                     st.warning("댓글 내용을 입력하세요.")
 
+            # 아이디어 삭제
             if st.button("아이디어 삭제", key=f"delete_{idx}"):
                 ideas.pop(idx)
                 st.session_state["community_ideas"] = ideas
