@@ -93,8 +93,8 @@ def save_ideas(ideas):
             "title": idea.title,
             "content": idea.content,
             "auto_analysis": idea.auto_analysis,
-            "likes": idea.likes,  # (기존 likes 필드)
-            "dislikes": idea.dislikes,  # (기존 dislikes 필드)
+            "likes": idea.likes,
+            "dislikes": idea.dislikes,
             "investment": idea.investment,
             "comments": idea.comments,
             "team_members": idea.team_members,
@@ -102,7 +102,6 @@ def save_ideas(ideas):
             "customer_needs": idea.customer_needs,
             "merce_analysis": idea.merce_analysis,
             "bmc_analysis": idea.bmc_analysis,
-            # 새로 추가한 필드
             "liked_users": idea.liked_users,
             "disliked_users": idea.disliked_users,
         })
@@ -113,9 +112,10 @@ def save_ideas(ideas):
         st.error(f"아이디어 저장 중 오류 발생: {e}")
 
 # -------------------------
-# 세션 초기화
+# 세션 초기화 (기존 값이 없을 경우에만 초기화)
 # -------------------------
-st.session_state["community_ideas"] = load_ideas()
+if "community_ideas" not in st.session_state:
+    st.session_state["community_ideas"] = load_ideas()
 
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
@@ -129,7 +129,6 @@ if "doc_analysis" not in st.session_state:
 if "extra_info" not in st.session_state:
     st.session_state["extra_info"] = ""
 
-# 예시: 사용자 프로필 데이터 (실제 구현에서는 회원가입 정보를 별도 저장)
 if "user_profile" not in st.session_state:
     st.session_state["user_profile"] = {
         "username": "익명사용자",
@@ -252,21 +251,18 @@ def run_file_analysis():
     uploaded_file = st.file_uploader("PDF/PPTX/DOCX/HWP 파일을 업로드하세요", type=["pdf", "ppt", "pptx", "docx", "hwp"])
 
     if uploaded_file is not None:
-        # 파일 파싱
         with st.spinner("파일 파싱 중..."):
             parsed_text = parse_file(uploaded_file)
         st.write("**추출된 텍스트**:")
         st.session_state["uploaded_text"] = parsed_text
         st.write(parsed_text)
 
-        # GPT 분석 (문서 요약 및 질문)
         with st.spinner("GPT 분석(요약+질문) 중..."):
             doc_analysis = ask_gpt(
                 f"다음 문서를 분석하고, 핵심내용을 요약한 후 추가로 궁금해할 질문을 제시해줘:\n{parsed_text}"
             )
         st.session_state["doc_analysis"] = doc_analysis
 
-        # 추가 정보 제공 (배경지식, 유사사례 등)
         with st.spinner("GPT가 추가 정보 파악 중..."):
             extra_info = ask_gpt(
                 f"문서 내용: {parsed_text}\n\n"
@@ -283,7 +279,6 @@ def run_file_analysis():
         st.write("### GPT 추가 정보")
         st.write(extra_info)
 
-        # 사용자가 GPT 질문에 답변할 수 있도록 입력받음
         user_ans = st.text_input("GPT가 궁금해하는 질문에 대한 답변(옵션)", key="doc_user_ans")
         if st.button("GPT에게 답장하기", key="reply_button"):
             with st.spinner("GPT에게 답변 전달 중..."):
@@ -308,7 +303,6 @@ def run_community_page():
         content = st.text_area("아이디어 내용")
         submitted = st.form_submit_button("아이디어 등록")
     if submitted and title.strip() and content.strip():
-        # GPT로 SWOT, 고객 분석, MERCE 및 BMC 진행
         swot_prompt = f"다음 아이디어에 대해 간단한 SWOT 분석을 해줘:\n{content}"
         customer_prompt = f"이 아이디어에 대한 고객(소비자) 니즈나 시장분석 요약을 해줘:\n{content}"
         merce_prompt = f"이 아이디어에 대해 MERCE 분석을 해줘:\n{content}"
@@ -329,9 +323,8 @@ def run_community_page():
         new_idea.merce_analysis = merce_result
         new_idea.bmc_analysis = bmc_result
 
-        ideas = load_ideas()
+        ideas = st.session_state["community_ideas"]
         ideas.append(new_idea)
-        st.session_state["community_ideas"] = ideas
         save_ideas(ideas)
         st.success("아이디어 등록 및 자동 분석 완료!")
 
@@ -343,7 +336,6 @@ def run_community_page():
         return
 
     for idx, idea in enumerate(ideas):
-        # 댓글 달자마자 보이게 하려면 expanded=True 로 해도 됨
         with st.expander(f"{idx+1}. {idea.title}", expanded=False):
             st.write(f"**내용**: {idea.content}")
 
@@ -360,7 +352,6 @@ def run_community_page():
                 st.markdown("**고객(소비자) 분석:**")
                 st.write(idea.customer_needs)
 
-            # 좋아요/싫어요는 유저 중복 방지
             like_count = len(idea.liked_users)
             dislike_count = len(idea.disliked_users)
 
@@ -369,36 +360,26 @@ def run_community_page():
                 st.write(f"👍 {like_count}")
                 if st.button("좋아요", key=f"like_{idx}"):
                     username = st.session_state["user_profile"]["username"]
-                    # 싫어요를 누른 적 있다면 해제
                     if username in idea.disliked_users:
                         idea.disliked_users.remove(username)
-                    # 아직 좋아요를 누르지 않았다면 추가
                     if username not in idea.liked_users:
                         idea.liked_users.append(username)
                     save_ideas(ideas)
-                    st.experimental_rerun()
-
             with col2:
                 st.write(f"👎 {dislike_count}")
                 if st.button("싫어요", key=f"dislike_{idx}"):
                     username = st.session_state["user_profile"]["username"]
-                    # 좋아요를 누른 적 있다면 해제
                     if username in idea.liked_users:
                         idea.liked_users.remove(username)
-                    # 아직 싫어요를 누르지 않았다면 추가
                     if username not in idea.disliked_users:
                         idea.disliked_users.append(username)
                     save_ideas(ideas)
-                    st.experimental_rerun()
-
             with col3:
                 st.write(f"💰 {idea.investment}")
                 if st.button("투자 +100", key=f"invest_{idx}"):
                     idea.investment += 100
                     save_ideas(ideas)
-                    st.experimental_rerun()
 
-            # 팀원 목록
             st.write("### 팀원 목록")
             if not idea.team_members:
                 st.write("아직 팀원이 없습니다.")
@@ -411,9 +392,7 @@ def run_community_page():
                 idea.team_members.append(st.session_state["user_profile"]["username"])
                 save_ideas(ideas)
                 st.success(f"팀에 합류했습니다! 추천: {recommendation}")
-                st.experimental_rerun()
 
-            # 댓글 목록
             st.write("### 댓글")
             if not idea.comments:
                 st.write("댓글이 없습니다.")
@@ -421,22 +400,19 @@ def run_community_page():
                 for comment in idea.comments:
                     st.write(f"- {comment}")
 
-            # 새 댓글 달기
             new_comment = st.text_input("댓글 달기", key=f"comment_{idx}")
             if st.button("댓글 등록", key=f"submit_comment_{idx}"):
                 if new_comment.strip():
                     idea.comments.append(new_comment.strip())
                     save_ideas(ideas)
-                    st.experimental_rerun()
                 else:
                     st.warning("댓글 내용을 입력하세요.")
 
-            # 아이디어 삭제
             if st.button("아이디어 삭제", key=f"delete_{idx}"):
                 ideas.pop(idx)
                 st.session_state["community_ideas"] = ideas
                 save_ideas(ideas)
-                st.experimental_rerun()
+                st.success("아이디어가 삭제되었습니다.")
 
 if __name__ == "__main__":
     main()
