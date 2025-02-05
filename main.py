@@ -301,15 +301,16 @@ def run_community_page():
         return
 
     for idx, idea in enumerate(ideas):
+        # 외부 expander로 아이디어 제목과 내용을 감싸되, 내부에 추가 expander는 사용하지 않습니다.
         with st.expander(f"{idx+1}. {idea.title}", expanded=False):
             st.write(f"**내용**: {idea.content}")
 
             if idea.swot_analysis:
-                with st.expander("SWOT 분석 결과", expanded=False):
-                    st.write(idea.swot_analysis)
+                st.markdown("**SWOT 분석 결과:**")
+                st.write(idea.swot_analysis)
             if idea.customer_needs:
-                with st.expander("고객(소비자) 분석", expanded=False):
-                    st.write(idea.customer_needs)
+                st.markdown("**고객(소비자) 분석:**")
+                st.write(idea.customer_needs)
 
             col1, col2, col3 = st.columns(3)
             with col1:
