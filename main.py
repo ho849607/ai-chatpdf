@@ -6,6 +6,91 @@ from dotenv import load_dotenv
 import docx2txt
 import PyPDF2
 from pptx import Presentation
+import hashlib
+import time
+
+# -------------------------
+# 블록체인 구현 (아이디어 위변조 방지)
+# -------------------------
+class Block:
+    def __init__(self, index, timestamp, data, previous_hash, nonce=0):
+        """
+        :param index: 블록 번호
+        :param timestamp: 블록 생성 시각 (초 단위 타임스탬프)
+        :param data: 블록에 저장할 데이터 (예: 아이디어 정보)
+        :param previous_hash: 이전 블록의 해시값
+        :param nonce: 채굴용 임의 값 (초기값 0)
+        """
+        self.index = index
+        self.timestamp = timestamp
+        self.data = data
+        self.previous_hash = previous_hash
+        self.nonce = nonce
+        self.hash = self.calculate_hash()
+
+    def calculate_hash(self):
+        """
+        블록의 내용을 JSON으로 변환하여 SHA-256 해시값 계산
+        """
+        block_string = json.dumps({
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash,
+            "nonce": self.nonce
+        }, sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+
+    def mine_block(self, difficulty):
+        """
+        채굴: 해시 앞부분에 '0'이 difficulty 수만큼 붙을 때까지 nonce를 증가시키며 해시값 재계산
+        """
+        target = "0" * difficulty
+        while self.hash[:difficulty] != target:
+            self.nonce += 1
+            self.hash = self.calculate_hash()
+        print(f"Block {self.index} mined: {self.hash}")
+
+class Blockchain:
+    def __init__(self, difficulty=2):
+        self.chain = [self.create_genesis_block()]
+        self.difficulty = difficulty  # 채굴 난이도
+
+    def create_genesis_block(self):
+        """
+        최초의 블록(제네시스 블록) 생성
+        """
+        return Block(0, time.time(), "Genesis Block", "0")
+
+    def get_latest_block(self):
+        return self.chain[-1]
+
+    def add_block(self, data):
+        """
+        새로운 데이터를 포함하는 블록을 생성하고 채굴하여 블록체인에 추가
+        """
+        new_index = len(self.chain)
+        new_block = Block(new_index, time.time(), data, self.get_latest_block().hash)
+        new_block.mine_block(self.difficulty)
+        self.chain.append(new_block)
+
+    def is_chain_valid(self):
+        """
+        체인 전체를 순회하며 각 블록의 해시가 올바른지, 이전 해시와 일치하는지 확인
+        """
+        for i in range(1, len(self.chain)):
+            current_block = self.chain[i]
+            previous_block = self.chain[i - 1]
+            if current_block.hash != current_block.calculate_hash():
+                print(f"Block {current_block.index}의 해시값이 일치하지 않습니다!")
+                return False
+            if current_block.previous_hash != previous_block.hash:
+                print(f"Block {current_block.index}의 이전 해시가 올바르지 않습니다!")
+                return False
+        return True
+
+# 전역 블록체인 인스턴스 (아이디어 저장용)
+idea_blockchain = Blockchain(difficulty=2)
 
 # -------------------------
 # 환경 변수 로드 (OpenAI API)
@@ -292,7 +377,7 @@ def run_file_analysis():
                 st.write(followup)
 
 # -------------------------
-# 3) 커뮤니티
+# 3) 커뮤니티 (아이디어 등록 & 블록체인 연동)
 # -------------------------
 def run_community_page():
     st.subheader("커뮤니티: 아이디어 공유 & 투자")
@@ -323,10 +408,25 @@ def run_community_page():
         new_idea.merce_analysis = merce_result
         new_idea.bmc_analysis = bmc_result
 
+        # 커뮤니티 아이디어 리스트에 추가
         ideas = st.session_state["community_ideas"]
         ideas.append(new_idea)
         save_ideas(ideas)
         st.success("아이디어 등록 및 자동 분석 완료!")
+
+        # 블록체인에 아이디어 정보 기록 (핵심 내용만 블록에 저장)
+        block_data = {
+            "title": new_idea.title,
+            "content": new_idea.content,
+            "auto_analysis": new_idea.auto_analysis,
+            "swot_analysis": new_idea.swot_analysis,
+            "customer_needs": new_idea.customer_needs,
+            "merce_analysis": new_idea.merce_analysis,
+            "bmc_analysis": new_idea.bmc_analysis
+        }
+        with st.spinner("아이디어를 블록체인에 기록 중..."):
+            idea_blockchain.add_block(block_data)
+        st.info("아이디어가 블록체인에 기록되었습니다.")
 
     st.write("---")
     st.write("### 아이디어 목록")
