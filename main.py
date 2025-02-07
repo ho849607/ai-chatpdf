@@ -10,14 +10,14 @@ import hashlib
 import time
 
 # -------------------------
-# 블록체인 구현 (아이디어 위변조 방지)
+# 블록체인 구현 (전자책 정보 위변조 방지)
 # -------------------------
 class Block:
     def __init__(self, index, timestamp, data, previous_hash, nonce=0):
         """
         :param index: 블록 번호
         :param timestamp: 블록 생성 시각 (초 단위 타임스탬프)
-        :param data: 블록에 저장할 데이터 (예: 아이디어 정보)
+        :param data: 블록에 저장할 데이터 (예: 전자책 정보)
         :param previous_hash: 이전 블록의 해시값
         :param nonce: 채굴용 임의 값 (초기값 0)
         """
@@ -89,7 +89,7 @@ class Blockchain:
                 return False
         return True
 
-# 전역 블록체인 인스턴스 (아이디어 저장용)
+# 전역 블록체인 인스턴스 (전자책 기록용)
 idea_blockchain = Blockchain(difficulty=2)
 
 # -------------------------
@@ -103,104 +103,78 @@ else:
     openai.api_key = openai_api_key
 
 # -------------------------
-# CommunityIdea 모델 (커뮤니티 아이디어)
+# 전자책 모델
 # -------------------------
-class CommunityIdea:
-    def __init__(
-        self,
-        title,
-        content,
-        auto_analysis="",
-        likes=0,
-        dislikes=0,
-        investment=0,
-        comments=None,
-        team_members=None,
-        # 새로 추가한 필드: 유저별 좋아요/싫어요 관리를 위해
-        liked_users=None,
-        disliked_users=None,
-    ):
+class EBook:
+    def __init__(self, title, description, purchase_price, rental_price, auto_analysis="", file_text="", review_analysis="", comments=None, purchase_count=0, rental_count=0):
         self.title = title
-        self.content = content
+        self.description = description
+        self.purchase_price = purchase_price
+        self.rental_price = rental_price
         self.auto_analysis = auto_analysis
-        self.likes = likes
-        self.dislikes = dislikes
-        self.investment = investment
+        self.file_text = file_text
+        self.review_analysis = review_analysis
         self.comments = comments if comments else []
-        self.team_members = team_members if team_members else []
-        self.swot_analysis = ""
-        self.customer_needs = ""
-        self.merce_analysis = ""
-        self.bmc_analysis = ""
-        # 좋아요/싫어요 중복 방지를 위한 유저 목록
-        self.liked_users = liked_users if liked_users else []
-        self.disliked_users = disliked_users if disliked_users else []
+        self.purchase_count = purchase_count
+        self.rental_count = rental_count
 
 # -------------------------
-# JSON 파일로 저장/로드
+# JSON 파일로 전자책 저장/로드
 # -------------------------
-IDEA_FILE = "ideas.json"
+EBOOK_FILE = "ebooks.json"
 
-def load_ideas():
-    if not os.path.exists(IDEA_FILE):
+def load_ebooks():
+    if not os.path.exists(EBOOK_FILE):
         return []
     try:
-        with open(IDEA_FILE, "r", encoding="utf-8") as f:
+        with open(EBOOK_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
-        st.error(f"아이디어 파일 로드 중 오류 발생: {e}")
+        st.error(f"전자책 파일 로드 중 오류 발생: {e}")
         return []
-    ideas = []
+    ebooks = []
     for item in data:
-        idea = CommunityIdea(
+        ebook = EBook(
             title=item["title"],
-            content=item["content"],
+            description=item["description"],
+            purchase_price=item.get("purchase_price", 0),
+            rental_price=item.get("rental_price", 0),
             auto_analysis=item.get("auto_analysis", ""),
-            likes=item.get("likes", 0),
-            dislikes=item.get("dislikes", 0),
-            investment=item.get("investment", 0),
+            file_text=item.get("file_text", ""),
+            review_analysis=item.get("review_analysis", ""),
             comments=item.get("comments", []),
-            team_members=item.get("team_members", []),
-            liked_users=item.get("liked_users", []),
-            disliked_users=item.get("disliked_users", []),
+            purchase_count=item.get("purchase_count", 0),
+            rental_count=item.get("rental_count", 0)
         )
-        idea.swot_analysis = item.get("swot_analysis", "")
-        idea.customer_needs = item.get("customer_needs", "")
-        idea.merce_analysis = item.get("merce_analysis", "")
-        idea.bmc_analysis = item.get("bmc_analysis", "")
-        ideas.append(idea)
-    return ideas
+        ebooks.append(ebook)
+    return ebooks
 
-def save_ideas(ideas):
+def save_ebooks(ebooks):
     data = []
-    for idea in ideas:
+    for ebook in ebooks:
         data.append({
-            "title": idea.title,
-            "content": idea.content,
-            "auto_analysis": idea.auto_analysis,
-            "likes": idea.likes,
-            "dislikes": idea.dislikes,
-            "investment": idea.investment,
-            "comments": idea.comments,
-            "team_members": idea.team_members,
-            "swot_analysis": idea.swot_analysis,
-            "customer_needs": idea.customer_needs,
-            "merce_analysis": idea.merce_analysis,
-            "bmc_analysis": idea.bmc_analysis,
-            "liked_users": idea.liked_users,
-            "disliked_users": idea.disliked_users,
+            "title": ebook.title,
+            "description": ebook.description,
+            "purchase_price": ebook.purchase_price,
+            "rental_price": ebook.rental_price,
+            "auto_analysis": ebook.auto_analysis,
+            "file_text": ebook.file_text,
+            "review_analysis": ebook.review_analysis,
+            "comments": ebook.comments,
+            "purchase_count": ebook.purchase_count,
+            "rental_count": ebook.rental_count
         })
     try:
-        with open(IDEA_FILE, "w", encoding="utf-8") as f:
+        with open(EBOOK_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        st.error(f"아이디어 저장 중 오류 발생: {e}")
+        st.error(f"전자책 저장 중 오류 발생: {e}")
 
 # -------------------------
 # 세션 초기화 (기존 값이 없을 경우에만 초기화)
 # -------------------------
-if "community_ideas" not in st.session_state:
-    st.session_state["community_ideas"] = load_ideas()
+if "ebooks" not in st.session_state:
+    st.session_state["ebooks"] = load_ebooks()
 
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
@@ -218,7 +192,8 @@ if "user_profile" not in st.session_state:
     st.session_state["user_profile"] = {
         "username": "익명사용자",
         "experience": "개발, 스타트업 참여 경험 있음",
-        "preferences": "핀테크, AI, 블록체인"
+        "preferences": "핀테크, AI, 블록체인",
+        "membership": False  # 기본적으로 일반 회원
     }
 
 # -------------------------
@@ -276,28 +251,23 @@ def parse_file(uploaded_file):
         return f"파일 파싱 중 오류 발생: {e}"
 
 # -------------------------
-# 팀원 추천 함수 (예시)
-# -------------------------
-def recommend_team_for_user(user_profile, idea):
-    if "핀테크" in user_profile["preferences"] and "핀테크" in idea.content:
-        return "이 아이디어는 귀하의 핀테크 선호와 잘 맞습니다!"
-    else:
-        return "더 다양한 팀 매칭 기회를 확인해보세요."
-
-# -------------------------
 # 메인 Streamlit 함수
 # -------------------------
 def main():
-    st.title("StudyHelper")
+    st.title("StudyHelper - 전자책 플랫폼")
 
-    menu = st.sidebar.radio("메뉴", ["GPT 채팅", "문서 업로드 & 자동 분석", "커뮤니티"])
+    # 좌측 사이드바에서 멤버십 상태 선택 (일반 회원/멤버십 가입)
+    membership_status = st.sidebar.radio("멤버십 상태", ["일반 회원", "멤버십 가입"])
+    st.session_state["user_profile"]["membership"] = (membership_status == "멤버십 가입")
+
+    menu = st.sidebar.radio("메뉴", ["GPT 채팅", "전자책 업로드 & 자동 분석", "전자책 등록 & 구매/대여"])
 
     if menu == "GPT 채팅":
         run_gpt_chat()
-    elif menu == "문서 업로드 & 자동 분석":
+    elif menu == "전자책 업로드 & 자동 분석":
         run_file_analysis()
     else:
-        run_community_page()
+        run_ebook_marketplace()
 
 # -------------------------
 # 1) GPT 채팅
@@ -329,34 +299,34 @@ def run_gpt_chat():
             st.write(gpt_response)
 
 # -------------------------
-# 2) 문서 업로드 & 자동 분석
+# 2) 전자책 업로드 & 자동 분석
 # -------------------------
 def run_file_analysis():
-    st.subheader("문서 업로드 & 자동 GPT 분석")
+    st.subheader("전자책 업로드 & 자동 분석")
     uploaded_file = st.file_uploader("PDF/PPTX/DOCX/HWP 파일을 업로드하세요", type=["pdf", "ppt", "pptx", "docx", "hwp"])
 
     if uploaded_file is not None:
         with st.spinner("파일 파싱 중..."):
             parsed_text = parse_file(uploaded_file)
-        st.write("**추출된 텍스트**:")
+        st.write("**추출된 전자책 텍스트**:")
         st.session_state["uploaded_text"] = parsed_text
         st.write(parsed_text)
 
-        with st.spinner("GPT 분석(요약+질문) 중..."):
+        with st.spinner("GPT 분석(요약 및 개선점) 중..."):
             doc_analysis = ask_gpt(
-                f"다음 문서를 분석하고, 핵심내용을 요약한 후 추가로 궁금해할 질문을 제시해줘:\n{parsed_text}"
+                f"다음 전자책 내용을 요약하고, 핵심 개선점과 중요한 부분을 알려줘:\n{parsed_text}"
             )
         st.session_state["doc_analysis"] = doc_analysis
 
-        with st.spinner("GPT가 추가 정보 파악 중..."):
+        with st.spinner("GPT 추가 분석 중..."):
             extra_info = ask_gpt(
-                f"문서 내용: {parsed_text}\n\n"
-                f"요약+질문: {doc_analysis}\n\n"
-                f"이 문서를 살펴보는 사람이 관심 있어 할 만한 배경지식, 관련 사례, 추가 팁 등을 제공해줘."
+                f"전자책 내용: {parsed_text}\n\n"
+                f"요약 및 개선점: {doc_analysis}\n\n"
+                f"이 전자책에 대해 추가로 참고할 만한 배경지식, 사례, 팁 등을 제공해줘."
             )
         st.session_state["extra_info"] = extra_info
 
-        st.success("문서 자동 분석 및 추가 정보 제공 완료")
+        st.success("전자책 자동 분석 및 추가 정보 제공 완료")
 
         st.write("### GPT 분석 결과")
         st.write(doc_analysis)
@@ -364,11 +334,11 @@ def run_file_analysis():
         st.write("### GPT 추가 정보")
         st.write(extra_info)
 
-        user_ans = st.text_input("GPT가 궁금해하는 질문에 대한 답변(옵션)", key="doc_user_ans")
+        user_ans = st.text_input("GPT가 제시한 질문에 대한 답변 (옵션)", key="doc_user_ans")
         if st.button("GPT에게 답장하기", key="reply_button"):
             with st.spinner("GPT에게 답변 전달 중..."):
                 followup = ask_gpt(
-                    f"문서 분석 결과: {doc_analysis}\n"
+                    f"전자책 분석 결과: {doc_analysis}\n"
                     f"추가 정보: {extra_info}\n"
                     f"사용자가 질문에 이렇게 답했습니다: {user_ans}\n"
                     f"추가 조언이나 정보를 제공해줘."
@@ -377,142 +347,119 @@ def run_file_analysis():
                 st.write(followup)
 
 # -------------------------
-# 3) 커뮤니티 (아이디어 등록 & 블록체인 연동)
+# 3) 전자책 등록 & 구매/대여 (커뮤니티)
 # -------------------------
-def run_community_page():
-    st.subheader("커뮤니티: 아이디어 공유 & 투자")
+def run_ebook_marketplace():
+    st.subheader("전자책 등록 & 구매/대여")
 
-    # 새 아이디어 등록 폼
-    with st.form(key="idea_form", clear_on_submit=True):
-        title = st.text_input("아이디어 제목")
-        content = st.text_area("아이디어 내용")
-        submitted = st.form_submit_button("아이디어 등록")
-    if submitted and title.strip() and content.strip():
-        swot_prompt = f"다음 아이디어에 대해 간단한 SWOT 분석을 해줘:\n{content}"
-        customer_prompt = f"이 아이디어에 대한 고객(소비자) 니즈나 시장분석 요약을 해줘:\n{content}"
-        merce_prompt = f"이 아이디어에 대해 MERCE 분석을 해줘:\n{content}"
-        bmc_prompt = f"이 아이디어에 대해 비즈니스 모델 캔버스(BMC)를 정리해줘:\n{content}"
-        with st.spinner("자동 분석 중..."):
-            swot_result = ask_gpt(swot_prompt)
-            customer_result = ask_gpt(customer_prompt)
-            merce_result = ask_gpt(merce_prompt)
-            bmc_result = ask_gpt(bmc_prompt)
-        
-        new_idea = CommunityIdea(
+    # 전자책 등록 폼
+    with st.form(key="ebook_form", clear_on_submit=True):
+        title = st.text_input("전자책 제목")
+        description = st.text_area("전자책 설명")
+        purchase_price = st.number_input("구매 가격 (원)", min_value=0, value=1000)
+        rental_price = st.number_input("대여 가격 (원)", min_value=0, value=500)
+        uploaded_file = st.file_uploader("전자책 파일 업로드 (PDF/PPTX/DOCX/HWP)", type=["pdf", "ppt", "pptx", "docx", "hwp"])
+        submitted = st.form_submit_button("전자책 등록")
+    if submitted and title.strip() and description.strip():
+        file_text = ""
+        if uploaded_file is not None:
+            with st.spinner("파일 파싱 중..."):
+                file_text = parse_file(uploaded_file)
+        else:
+            file_text = description
+        with st.spinner("전자책 자동 분석 중..."):
+            auto_analysis = ask_gpt(f"다음 전자책 내용을 요약하고, 개선점 및 중요한 부분을 알려줘:\n{file_text}")
+        new_ebook = EBook(
             title=title,
-            content=content,
-            auto_analysis="자동분석(기본)"
+            description=description,
+            purchase_price=purchase_price,
+            rental_price=rental_price,
+            auto_analysis=auto_analysis,
+            file_text=file_text
         )
-        new_idea.swot_analysis = swot_result
-        new_idea.customer_needs = customer_result
-        new_idea.merce_analysis = merce_result
-        new_idea.bmc_analysis = bmc_result
+        ebooks = st.session_state["ebooks"]
+        ebooks.append(new_ebook)
+        save_ebooks(ebooks)
+        st.success("전자책 등록 및 자동 분석 완료!")
 
-        # 커뮤니티 아이디어 리스트에 추가
-        ideas = st.session_state["community_ideas"]
-        ideas.append(new_idea)
-        save_ideas(ideas)
-        st.success("아이디어 등록 및 자동 분석 완료!")
-
-        # 블록체인에 아이디어 정보 기록 (핵심 내용만 블록에 저장)
+        # 블록체인에 전자책 정보 기록
         block_data = {
-            "title": new_idea.title,
-            "content": new_idea.content,
-            "auto_analysis": new_idea.auto_analysis,
-            "swot_analysis": new_idea.swot_analysis,
-            "customer_needs": new_idea.customer_needs,
-            "merce_analysis": new_idea.merce_analysis,
-            "bmc_analysis": new_idea.bmc_analysis
+            "title": new_ebook.title,
+            "description": new_ebook.description,
+            "auto_analysis": new_ebook.auto_analysis,
+            "purchase_price": new_ebook.purchase_price,
+            "rental_price": new_ebook.rental_price
         }
-        with st.spinner("아이디어를 블록체인에 기록 중..."):
+        with st.spinner("전자책을 블록체인에 기록 중..."):
             idea_blockchain.add_block(block_data)
-        st.info("아이디어가 블록체인에 기록되었습니다.")
+        st.info("전자책이 블록체인에 기록되었습니다.")
 
     st.write("---")
-    st.write("### 아이디어 목록")
-    ideas = st.session_state["community_ideas"]
-    if not ideas:
-        st.write("등록된 아이디어가 없습니다.")
+    st.write("### 등록된 전자책 목록")
+    ebooks = st.session_state["ebooks"]
+    if not ebooks:
+        st.write("등록된 전자책이 없습니다.")
         return
 
-    for idx, idea in enumerate(ideas):
-        with st.expander(f"{idx+1}. {idea.title}", expanded=False):
-            st.write(f"**내용**: {idea.content}")
-
-            if idea.swot_analysis:
-                st.markdown("**SWOT 분석 결과:**")
-                st.write(idea.swot_analysis)
-            if idea.merce_analysis:
-                st.markdown("**MERCE 분석 결과:**")
-                st.write(idea.merce_analysis)
-            if idea.bmc_analysis:
-                st.markdown("**BMC 분석 결과:**")
-                st.write(idea.bmc_analysis)
-            if idea.customer_needs:
-                st.markdown("**고객(소비자) 분석:**")
-                st.write(idea.customer_needs)
-
-            like_count = len(idea.liked_users)
-            dislike_count = len(idea.disliked_users)
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.write(f"👍 {like_count}")
-                if st.button("좋아요", key=f"like_{idx}"):
-                    username = st.session_state["user_profile"]["username"]
-                    if username in idea.disliked_users:
-                        idea.disliked_users.remove(username)
-                    if username not in idea.liked_users:
-                        idea.liked_users.append(username)
-                    save_ideas(ideas)
-            with col2:
-                st.write(f"👎 {dislike_count}")
-                if st.button("싫어요", key=f"dislike_{idx}"):
-                    username = st.session_state["user_profile"]["username"]
-                    if username in idea.liked_users:
-                        idea.liked_users.remove(username)
-                    if username not in idea.disliked_users:
-                        idea.disliked_users.append(username)
-                    save_ideas(ideas)
-            with col3:
-                st.write(f"💰 {idea.investment}")
-                if st.button("투자 +100", key=f"invest_{idx}"):
-                    idea.investment += 100
-                    save_ideas(ideas)
-
-            st.write("### 팀원 목록")
-            if not idea.team_members:
-                st.write("아직 팀원이 없습니다.")
+    for idx, ebook in enumerate(ebooks):
+        with st.expander(f"{idx+1}. {ebook.title}", expanded=False):
+            st.write(f"**설명**: {ebook.description}")
+            if ebook.auto_analysis:
+                st.markdown("**전자책 자동 분석 결과:**")
+                st.write(ebook.auto_analysis)
+            st.markdown(f"**구매 가격**: {ebook.purchase_price}원  |  **대여 가격**: {ebook.rental_price}원")
+            
+            # 구매/대여 또는 멤버십 이용 기능
+            if st.session_state["user_profile"]["membership"]:
+                if st.button("멤버십으로 무료 이용", key=f"read_{idx}"):
+                    st.write("### 전자책 내용")
+                    st.write(ebook.file_text)
             else:
-                for member in idea.team_members:
-                    st.write(f"- {member}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("구매하기", key=f"buy_{idx}"):
+                        ebook.purchase_count += 1
+                        save_ebooks(ebooks)
+                        st.success("전자책 구매 완료!")
+                with col2:
+                    if st.button("대여하기", key=f"rent_{idx}"):
+                        ebook.rental_count += 1
+                        save_ebooks(ebooks)
+                        st.success("전자책 대여 완료!")
+            st.write(f"**구매 횟수**: {ebook.purchase_count}  |  **대여 횟수**: {ebook.rental_count}")
 
-            if st.button("팀원 합류", key=f"join_{idx}"):
-                recommendation = recommend_team_for_user(st.session_state["user_profile"], idea)
-                idea.team_members.append(st.session_state["user_profile"]["username"])
-                save_ideas(ideas)
-                st.success(f"팀에 합류했습니다! 추천: {recommendation}")
-
-            st.write("### 댓글")
-            if not idea.comments:
-                st.write("댓글이 없습니다.")
+            st.write("### 리뷰")
+            if not ebook.comments:
+                st.write("리뷰가 없습니다.")
             else:
-                for comment in idea.comments:
+                for comment in ebook.comments:
                     st.write(f"- {comment}")
-
-            new_comment = st.text_input("댓글 달기", key=f"comment_{idx}")
-            if st.button("댓글 등록", key=f"submit_comment_{idx}"):
+            new_comment = st.text_input("리뷰 작성", key=f"comment_{idx}")
+            if st.button("리뷰 등록", key=f"submit_comment_{idx}"):
                 if new_comment.strip():
-                    idea.comments.append(new_comment.strip())
-                    save_ideas(ideas)
+                    ebook.comments.append(new_comment.strip())
+                    save_ebooks(ebooks)
+                    st.success("리뷰가 등록되었습니다.")
                 else:
-                    st.warning("댓글 내용을 입력하세요.")
+                    st.warning("리뷰 내용을 입력하세요.")
 
-            if st.button("아이디어 삭제", key=f"delete_{idx}"):
-                ideas.pop(idx)
-                st.session_state["community_ideas"] = ideas
-                save_ideas(ideas)
-                st.success("아이디어가 삭제되었습니다.")
+            if st.button("리뷰 분석", key=f"analyze_review_{idx}"):
+                if ebook.comments:
+                    reviews_text = "\n".join(ebook.comments)
+                    with st.spinner("리뷰 분석 중..."):
+                        analysis = ask_gpt(f"다음 전자책 리뷰를 분석하고, 개선점 및 중요한 피드백을 제공해줘:\n{reviews_text}")
+                    ebook.review_analysis = analysis
+                    save_ebooks(ebooks)
+                    st.write("### 리뷰 분석 결과")
+                    st.write(analysis)
+                else:
+                    st.warning("분석할 리뷰가 없습니다.")
+
+            if st.button("전자책 삭제", key=f"delete_{idx}"):
+                ebooks.pop(idx)
+                st.session_state["ebooks"] = ebooks
+                save_ebooks(ebooks)
+                st.success("전자책이 삭제되었습니다.")
 
 if __name__ == "__main__":
     main()
