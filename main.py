@@ -7,7 +7,7 @@ import time
 import hashlib
 
 # -------------------------
-# 환경 변수 로드 (OpenAI API + 블록체인 연결)
+# 환경 변수 로드 (OpenAI API)
 # -------------------------
 load_dotenv('.env')
 openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -62,8 +62,11 @@ class Blockchain:
         new_block.mine_block(self.difficulty)
         self.chain.append(new_block)
 
+# 전역 블록체인 인스턴스 (예: NFT 등록 내역 등)
+idea_blockchain = Blockchain(difficulty=2)
+
 # -------------------------
-# AI 콘텐츠 생성 & Web3 결제 시스템
+# AI 콘텐츠 생성 & Web3 결제 시스템 (콘텐츠 모델)
 # -------------------------
 class AIContent:
     def __init__(self, title, description, price, creator, file_text="", purchase_count=0):
@@ -75,7 +78,7 @@ class AIContent:
         self.purchase_count = purchase_count
 
 # -------------------------
-# 전자책 JSON 저장
+# 전자책(JSON) 저장 (여기서는 AI 콘텐츠 저장)
 # -------------------------
 CONTENT_FILE = "ai_contents.json"
 
@@ -119,20 +122,42 @@ def generate_ai_content(prompt):
         return f"⚠️ 오류 발생: {e}"
 
 # -------------------------
-# Web3 결제 시스템 (가상화폐 트랜잭션 시뮬레이션)
+# Web3 결제 시스템 (모의: 가상화폐 결제)
 # -------------------------
 def process_crypto_payment(amount):
     time.sleep(1)
     return True, f"✅ 결제 성공: {amount} 코인 전송 완료!"
 
 # -------------------------
+# 비트코인 잔액 조회 (모의 API)
+# -------------------------
+def fetch_bitcoin_balance():
+    time.sleep(1)
+    return "2.5 BTC"
+
+# -------------------------
+# 세션 초기화
+# -------------------------
+if "contents" not in st.session_state:
+    st.session_state["contents"] = load_contents()
+
+if "nfts" not in st.session_state:
+    st.session_state["nfts"] = "[]"  # NFT 데이터를 JSON 문자열로 저장
+
+if "user_profile" not in st.session_state:
+    st.session_state["user_profile"] = {
+        "username": "익명사용자",
+        "experience": "개발, 스타트업 참여 경험 있음",
+        "preferences": "핀테크, AI, 블록체인",
+        "membership": False
+    }
+
+# -------------------------
 # 메인 Streamlit 앱
 # -------------------------
 def main():
     st.title("🚀 Sharehost: AI 콘텐츠 & Web3 결제")
-
     menu = st.sidebar.radio("메뉴", ["AI 콘텐츠 생성", "Web3 결제 & 마켓플레이스", "NFT 콘텐츠 거래"])
-
     if menu == "AI 콘텐츠 생성":
         create_ai_content()
     elif menu == "Web3 결제 & 마켓플레이스":
@@ -141,7 +166,7 @@ def main():
         nft_marketplace()
 
 # -------------------------
-# AI 콘텐츠 생성 & 업로드
+# 1) AI 콘텐츠 생성 & 업로드
 # -------------------------
 def create_ai_content():
     st.subheader("🧠 AI 콘텐츠 생성")
@@ -149,27 +174,24 @@ def create_ai_content():
     description = st.text_area("📄 설명")
     price = st.number_input("💰 가격 (가상화폐)", min_value=1, value=10)
     creator = st.text_input("✍️ 크리에이터 이름", "익명")
-
     if st.button("🎨 AI 콘텐츠 생성"):
         with st.spinner("AI가 콘텐츠 생성 중..."):
             file_text = generate_ai_content(description)
             new_content = AIContent(title, description, price, creator, file_text)
-            contents = load_contents()
+            contents = st.session_state["contents"]
             contents.append(new_content)
             save_contents(contents)
             st.success("✅ AI 콘텐츠 생성 완료!")
 
 # -------------------------
-# Web3 결제 & 마켓플레이스
+# 2) Web3 결제 & 마켓플레이스
 # -------------------------
 def content_marketplace():
     st.subheader("🛒 AI 콘텐츠 마켓플레이스")
-    contents = load_contents()
-    
+    contents = st.session_state["contents"]
     if not contents:
         st.write("🚨 등록된 콘텐츠가 없습니다.")
         return
-
     for idx, content in enumerate(contents):
         with st.expander(f"{idx+1}. {content.title}"):
             st.write(f"📝 설명: {content.description}")
@@ -183,14 +205,54 @@ def content_marketplace():
                     st.success(message)
 
 # -------------------------
-# NFT 콘텐츠 거래 (Web3 결제 시스템)
+# 3) NFT 콘텐츠 거래 (NFT 등록 및 잔액 확인)
 # -------------------------
 def nft_marketplace():
     st.subheader("🖼 NFT 마켓플레이스")
+    # 비트코인 잔액 표시
+    btc_balance = fetch_bitcoin_balance()
+    st.info(f"현재 비트코인 잔액: {btc_balance}")
     st.write("🚀 AI 콘텐츠를 NFT로 등록하고 거래하세요!")
-
-    if st.button("🎨 NFT 등록하기"):
-        st.success("✅ NFT 등록 완료!")
+    
+    st.markdown("### NFT 등록")
+    with st.form(key="nft_form", clear_on_submit=True):
+        nft_title = st.text_input("NFT 제목")
+        nft_description = st.text_area("NFT 설명")
+        nft_price = st.number_input("NFT 가격 (코인)", min_value=1, value=10)
+        nft_image = st.file_uploader("NFT 이미지 업로드", type=["png", "jpg", "jpeg"])
+        submitted_nft = st.form_submit_button("NFT 등록")
+    if submitted_nft:
+        if nft_image is not None:
+            with st.spinner("이미지 분석 중..."):
+                time.sleep(2)
+                analysis_result = "분석 결과: 이 이미지는 창의적이고 독창적입니다."
+            st.success("이미지 분석 완료!")
+        else:
+            analysis_result = "이미지 미업로드"
+        nft = {
+            "id": int(time.time()),
+            "title": nft_title,
+            "description": nft_description + "\n" + analysis_result,
+            "price": nft_price,
+            "imageURL": "uploaded_image_placeholder_url",  # 실제 구현 시 파일 저장 URL 필요
+            "owner": st.session_state["user_profile"]["username"]
+        }
+        nfts = json.loads(st.session_state["nfts"])
+        nfts.append(nft)
+        st.session_state["nfts"] = json.dumps(nfts, ensure_ascii=False, indent=2)
+        st.success("✅ NFT 등록 완료되었습니다!")
+    
+    st.markdown("### 등록된 NFT")
+    nfts = json.loads(st.session_state["nfts"])
+    if not nfts:
+        st.write("등록된 NFT가 없습니다.")
+    else:
+        for nft in nfts:
+            st.write(f"**제목:** {nft['title']}")
+            st.write(f"**설명:** {nft['description']}")
+            st.write(f"**가격:** {nft['price']} 코인")
+            st.write(f"**소유자:** {nft['owner']}")
+            st.write("---")
 
 # -------------------------
 # 실행
