@@ -171,7 +171,72 @@ def save_ebooks(ebooks):
         st.error(f"전자책 저장 중 오류 발생: {e}")
 
 # -------------------------
-# 세션 초기화 (기존 값이 없을 경우에만 초기화)
+# 결제 처리 함수 (모의 API)
+# -------------------------
+def process_regular_payment(amount):
+    """
+    일반 카드 결제 처리 (모의 구현)
+    실제 서비스에서는 Stripe, 결제 게이트웨이 API 등을 사용하세요.
+    """
+    time.sleep(1)  # 처리 지연 시뮬레이션
+    return True, f"일반 카드 결제 {amount}원 결제 성공"
+
+def process_bitcoin_payment(amount):
+    """
+    비트코인 결제 처리 (모의 구현)
+    실제 서비스에서는 BitPay, Coinbase Commerce 등 API를 연동하세요.
+    """
+    time.sleep(1)
+    return True, f"비트코인 결제 {amount}원 결제 성공"
+
+def process_payment(amount, payment_method):
+    """
+    결제 수단에 따라 결제 처리
+    payment_method: "card" 또는 "bitcoin"
+    """
+    if payment_method == "card":
+        return process_regular_payment(amount)
+    elif payment_method == "bitcoin":
+        return process_bitcoin_payment(amount)
+    else:
+        return False, "알 수 없는 결제 수단"
+
+# -------------------------
+# 파일 파싱 함수
+# -------------------------
+def parse_file(uploaded_file):
+    filename = uploaded_file.name.lower()
+    try:
+        if filename.endswith(".pdf"):
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            text = []
+            for page in pdf_reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text.append(page_text)
+            return "\n".join(text)
+        elif filename.endswith((".ppt", ".pptx")):
+            prs = Presentation(uploaded_file)
+            text = []
+            for slide in prs.slides:
+                slide_texts = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        slide_texts.append(shape.text)
+                text.append("\n".join(slide_texts))
+            return "\n".join(text)
+        elif filename.endswith(".docx"):
+            doc_text = docx2txt.process(uploaded_file)
+            return doc_text if doc_text else ""
+        elif filename.endswith(".hwp"):
+            return "(HWP 파일은 아직 파싱이 구현되지 않았습니다.)"
+        else:
+            return "(지원하지 않는 파일 형식)"
+    except Exception as e:
+        return f"파일 파싱 중 오류 발생: {e}"
+
+# -------------------------
+# 세션 초기화
 # -------------------------
 if "ebooks" not in st.session_state:
     st.session_state["ebooks"] = load_ebooks()
@@ -215,40 +280,6 @@ def ask_gpt(prompt, max_tokens=600, temperature=0.7):
         return response.choices[0].message["content"]
     except Exception as e:
         return f"에러 발생: {e}"
-
-# -------------------------
-# 파일 파싱 함수
-# -------------------------
-def parse_file(uploaded_file):
-    filename = uploaded_file.name.lower()
-    try:
-        if filename.endswith(".pdf"):
-            pdf_reader = PyPDF2.PdfReader(uploaded_file)
-            text = []
-            for page in pdf_reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text.append(page_text)
-            return "\n".join(text)
-        elif filename.endswith((".ppt", ".pptx")):
-            prs = Presentation(uploaded_file)
-            text = []
-            for slide in prs.slides:
-                slide_texts = []
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        slide_texts.append(shape.text)
-                text.append("\n".join(slide_texts))
-            return "\n".join(text)
-        elif filename.endswith(".docx"):
-            doc_text = docx2txt.process(uploaded_file)
-            return doc_text if doc_text else ""
-        elif filename.endswith(".hwp"):
-            return "(HWP 파일은 아직 파싱이 구현되지 않았습니다.)"
-        else:
-            return "(지원하지 않는 파일 형식)"
-    except Exception as e:
-        return f"파일 파싱 중 오류 발생: {e}"
 
 # -------------------------
 # 메인 Streamlit 함수
@@ -417,15 +448,34 @@ def run_ebook_marketplace():
             else:
                 col1, col2 = st.columns(2)
                 with col1:
+                    # 구매하기: 먼저 선택하면 결제 폼 나타남.
                     if st.button("구매하기", key=f"buy_{idx}"):
-                        ebook.purchase_count += 1
-                        save_ebooks(ebooks)
-                        st.success("전자책 구매 완료!")
+                        st.session_state["selected_ebook"] = idx
                 with col2:
                     if st.button("대여하기", key=f"rent_{idx}"):
                         ebook.rental_count += 1
                         save_ebooks(ebooks)
                         st.success("전자책 대여 완료!")
+            
+            # 결제 폼: 구매하기 버튼 클릭 후 나타남.
+            if st.session_state.get("selected_ebook") == idx:
+                with st.form(key=f"payment_form_{idx}"):
+                    st.write("결제 수단을 선택하세요:")
+                    payment_method = st.radio("결제 방법", options=["일반 카드 결제", "비트코인 결제"])
+                    submitted_payment = st.form_submit_button("결제 진행")
+                    if submitted_payment:
+                        amount = ebook.purchase_price
+                        # payment_method에 따라 결제 처리 (매개변수 "card" 또는 "bitcoin")
+                        method = "card" if payment_method == "일반 카드 결제" else "bitcoin"
+                        success, message = process_payment(amount, method)
+                        if success:
+                            ebook.purchase_count += 1
+                            save_ebooks(ebooks)
+                            st.success(f"전자책 구매 완료! {message}")
+                            st.session_state["selected_ebook"] = None  # 결제 완료 후 초기화
+                        else:
+                            st.error("결제 실패: " + message)
+
             st.write(f"**구매 횟수**: {ebook.purchase_count}  |  **대여 횟수**: {ebook.rental_count}")
 
             st.write("### 리뷰")
