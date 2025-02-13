@@ -122,6 +122,21 @@ def generate_ai_content(prompt):
         return f"⚠️ 오류 발생: {e}"
 
 # -------------------------
+# 이미지 생성 API 호출 (예: DALL·E)
+# -------------------------
+def generate_image(prompt):
+    try:
+        response = openai.Image.create(
+            prompt=prompt,
+            n=1,
+            size="512x512"  # 원하는 이미지 크기
+        )
+        image_url = response['data'][0]['url']
+        return image_url
+    except Exception as e:
+        return f"이미지 생성 오류: {e}"
+
+# -------------------------
 # Web3 결제 시스템 (모의: 가상화폐 결제)
 # -------------------------
 def process_crypto_payment(amount):
@@ -220,21 +235,28 @@ def nft_marketplace():
         nft_description = st.text_area("NFT 설명")
         nft_price = st.number_input("NFT 가격 (코인)", min_value=1, value=10)
         nft_image = st.file_uploader("NFT 이미지 업로드", type=["png", "jpg", "jpeg"])
+        # 추가: 이미지 생성 프롬프트 (업로드 안된 경우)
+        image_prompt = st.text_input("이미지 생성 프롬프트 (이미지 업로드 없을 경우)", value="창의적인 NFT 아트워크")
         submitted_nft = st.form_submit_button("NFT 등록")
     if submitted_nft:
         if nft_image is not None:
             with st.spinner("이미지 분석 중..."):
                 time.sleep(2)
                 analysis_result = "분석 결과: 이 이미지는 창의적이고 독창적입니다."
+            # 실제 파일 URL은 저장 시스템 연동 필요
+            image_url = "uploaded_image_placeholder_url"
             st.success("이미지 분석 완료!")
         else:
-            analysis_result = "이미지 미업로드"
+            # 이미지 생성 API 호출
+            with st.spinner("이미지 생성 중..."):
+                image_url = generate_image(image_prompt)
+            analysis_result = "이미지 자동 생성"
         nft = {
             "id": int(time.time()),
             "title": nft_title,
             "description": nft_description + "\n" + analysis_result,
             "price": nft_price,
-            "imageURL": "uploaded_image_placeholder_url",  # 실제 구현 시 파일 저장 URL 필요
+            "imageURL": image_url,
             "owner": st.session_state["user_profile"]["username"]
         }
         nfts = json.loads(st.session_state["nfts"])
@@ -252,6 +274,7 @@ def nft_marketplace():
             st.write(f"**설명:** {nft['description']}")
             st.write(f"**가격:** {nft['price']} 코인")
             st.write(f"**소유자:** {nft['owner']}")
+            st.image(nft['imageURL'], width=250)
             st.write("---")
 
 # -------------------------
