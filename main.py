@@ -67,17 +67,32 @@ class Blockchain:
 idea_blockchain = Blockchain(difficulty=2)
 
 # -------------------------
-# AI 콘텐츠 모델 (image_url 필드 추가)
+# AI 콘텐츠 모델 (저작권/대여 관련 필드 추가)
 # -------------------------
 class AIContent:
-    def __init__(self, title, description, price, creator, file_text="", purchase_count=0, image_url=None):
+    def __init__(self, title, description, price, creator, file_text="", purchase_count=0, image_url=None,
+                 copyright_registered=False, copyright_cert="",
+                 copyright_eligibility="",
+                 copyright_lease_requested=False,
+                 lease_conditions="",
+                 lease_contract="",
+                 lease_eligibility=""):
         self.title = title
         self.description = description
         self.price = price
         self.creator = creator
         self.file_text = file_text
         self.purchase_count = purchase_count
-        self.image_url = image_url  # 이미지 URL 추가
+        self.image_url = image_url
+        # 저작권 등록 정보
+        self.copyright_registered = copyright_registered
+        self.copyright_cert = copyright_cert
+        self.copyright_eligibility = copyright_eligibility
+        # 저작권 대여(라이선스) 관련 정보
+        self.copyright_lease_requested = copyright_lease_requested
+        self.lease_conditions = lease_conditions
+        self.lease_contract = lease_contract
+        self.lease_eligibility = lease_eligibility
 
 # -------------------------
 # 전자책(JSON) 저장 (여기서는 AI 콘텐츠 저장)
@@ -86,7 +101,7 @@ CONTENT_FILE = "ai_contents.json"
 
 def load_contents():
     """
-    기존 JSON 파일에 image_url 키가 없을 경우 None으로 설정하여 오류를 방지합니다.
+    기존 JSON 파일에 image_url 및 저작권/대여 관련 키가 없을 경우 기본값으로 처리
     """
     if not os.path.exists(CONTENT_FILE):
         return []
@@ -99,8 +114,6 @@ def load_contents():
     
     contents = []
     for item in data:
-        # 기존 JSON에 image_url 키가 없으면 None을 반환
-        image_url = item.get("image_url", None)
         content = AIContent(
             title=item["title"],
             description=item["description"],
@@ -108,7 +121,14 @@ def load_contents():
             creator=item["creator"],
             file_text=item.get("file_text", ""),
             purchase_count=item.get("purchase_count", 0),
-            image_url=image_url
+            image_url=item.get("image_url", None),
+            copyright_registered=item.get("copyright_registered", False),
+            copyright_cert=item.get("copyright_cert", ""),
+            copyright_eligibility=item.get("copyright_eligibility", ""),
+            copyright_lease_requested=item.get("copyright_lease_requested", False),
+            lease_conditions=item.get("lease_conditions", ""),
+            lease_contract=item.get("lease_contract", ""),
+            lease_eligibility=item.get("lease_eligibility", "")
         )
         contents.append(content)
     return contents
@@ -123,7 +143,14 @@ def save_contents(contents):
             "creator": c.creator,
             "file_text": c.file_text,
             "purchase_count": c.purchase_count,
-            "image_url": c.image_url
+            "image_url": c.image_url,
+            "copyright_registered": c.copyright_registered,
+            "copyright_cert": c.copyright_cert,
+            "copyright_eligibility": c.copyright_eligibility,
+            "copyright_lease_requested": c.copyright_lease_requested,
+            "lease_conditions": c.lease_conditions,
+            "lease_contract": c.lease_contract,
+            "lease_eligibility": c.lease_eligibility
         })
     try:
         with open(CONTENT_FILE, "w", encoding="utf-8") as f:
@@ -166,6 +193,34 @@ def generate_image(prompt):
     except Exception as e:
         st.error(f"⚠️ 이미지 생성 오류: {e}")
         return None
+
+# -------------------------
+# 저작권 등록 (모의 기능)
+# -------------------------
+def register_copyright(image_url):
+    """
+    이미지 URL을 이용해 (모의) 저작권 등록을 진행.
+    등록 ID는 이미지 URL의 해시 일부를 사용하며, 항상 '저작권 인정 가능'으로 처리합니다.
+    """
+    if not image_url:
+        return None, "이미지 없음"
+    registration_id = f"COPY-{hashlib.sha256(image_url.encode()).hexdigest()[:10]}"
+    eligibility = "저작권 인정 가능"
+    return registration_id, eligibility
+
+# -------------------------
+# 저작권 대여(라이선스) 등록 (모의 기능)
+# -------------------------
+def register_copyright_lease(image_url, lease_conditions):
+    """
+    이미지 URL과 대여 조건을 기반으로 (모의) 저작권 대여 계약을 진행합니다.
+    계약 ID는 이미지 URL과 대여 조건을 해시하여 생성하며, '대여 가능' 상태를 반환합니다.
+    """
+    if not image_url or not lease_conditions.strip():
+        return None, "대여 조건 미설정"
+    contract_id = f"LEASE-{hashlib.sha256((image_url + lease_conditions).encode()).hexdigest()[:10]}"
+    eligibility = "대여 가능"
+    return contract_id, eligibility
 
 # -------------------------
 # Web3 결제 시스템 (모의: 가상화폐 결제)
@@ -229,6 +284,14 @@ def create_ai_content():
     with col2:
         image_prompt = st.text_input("DALL·E 프롬프트 (미업로드 시 자동생성)", value="귀여운 토끼 사진")
 
+    # 저작권 등록 요청 옵션
+    copyright_option = st.checkbox("저작권 등록 요청", value=False)
+    # 저작권 대여(라이선스) 요청 옵션 및 조건 입력
+    lease_option = st.checkbox("저작권 대여 서비스 요청", value=False)
+    lease_conditions_input = ""
+    if lease_option:
+        lease_conditions_input = st.text_area("대여 조건 입력 (예: 대여 기간, 비용 등)")
+
     if st.button("🎨 AI 콘텐츠 생성"):
         if not description:
             st.error("⚠️ 설명을 입력해주세요.")
@@ -240,19 +303,29 @@ def create_ai_content():
         # 이미지 처리
         image_url = None
         if uploaded_image is not None:
-            # 예시: 이미지를 base64로 인코딩(임시). 
-            # 실제로는 S3 등 클라우드에 업로드 후 해당 URL을 받는 방식을 권장.
             file_contents = uploaded_image.read()
             base64_img = base64.b64encode(file_contents).decode("utf-8")
-            # data URI 스키마로 표시 (Streamlit의 st.image에서 인식 가능)
             image_url = f"data:image/png;base64,{base64_img}"
             st.success("이미지 업로드 완료!")
         else:
-            # DALL·E로 자동 생성
             with st.spinner("DALL·E가 이미지를 생성 중..."):
                 created_url = generate_image(image_prompt)
                 if created_url:
                     image_url = created_url
+
+        # 저작권 등록 처리 (옵션 선택 시)
+        copyright_registered = False
+        copyright_cert = ""
+        copyright_eligibility = ""
+        if copyright_option and image_url:
+            copyright_cert, copyright_eligibility = register_copyright(image_url)
+            copyright_registered = True
+
+        # 저작권 대여(라이선스) 처리 (옵션 선택 시)
+        lease_contract = ""
+        lease_eligibility = ""
+        if lease_option and image_url and lease_conditions_input.strip():
+            lease_contract, lease_eligibility = register_copyright_lease(image_url, lease_conditions_input)
 
         # AI 콘텐츠 객체 생성
         new_content = AIContent(
@@ -261,10 +334,16 @@ def create_ai_content():
             price=price, 
             creator=creator, 
             file_text=file_text,
-            image_url=image_url
+            image_url=image_url,
+            copyright_registered=copyright_registered,
+            copyright_cert=copyright_cert,
+            copyright_eligibility=copyright_eligibility,
+            copyright_lease_requested=lease_option,
+            lease_conditions=lease_conditions_input,
+            lease_contract=lease_contract,
+            lease_eligibility=lease_eligibility
         )
 
-        # 세션 및 파일에 저장
         contents = st.session_state["contents"]
         contents.append(new_content)
         save_contents(contents)
@@ -288,11 +367,26 @@ def content_marketplace():
             st.write(f"💰 가격: {content.price} 코인")
             st.write(f"🎨 크리에이터: {content.creator}")
             
-            # 이미지 표시
             if content.image_url:
                 st.image(content.image_url, use_column_width=True)
 
-            # 결제 및 구매 버튼
+            # 저작권 등록 정보 표시
+            if content.image_url:
+                if content.copyright_registered:
+                    st.write(f"🔒 저작권 등록 완료: {content.copyright_cert}")
+                    st.write(f"📌 상태: {content.copyright_eligibility}")
+                else:
+                    st.write("🆓 저작권 미등록")
+            
+            # 저작권 대여(라이선스) 정보 표시
+            if content.copyright_lease_requested:
+                if content.lease_contract:
+                    st.write(f"💼 대여 계약 ID: {content.lease_contract}")
+                    st.write(f"📌 대여 조건: {content.lease_eligibility}")
+                    st.write(f"📝 대여 조건 상세: {content.lease_conditions}")
+                else:
+                    st.write("💼 대여 서비스 요청됨 (조건 미설정)")
+
             if st.button("💳 결제 및 구매", key=f"buy_{idx}"):
                 success, message = process_crypto_payment(content.price)
                 if success:
@@ -307,7 +401,6 @@ def content_marketplace():
 # -------------------------
 def nft_marketplace():
     st.subheader("🖼 NFT 마켓플레이스")
-    # 비트코인 잔액 표시
     btc_balance = fetch_bitcoin_balance()
     st.info(f"현재 비트코인 잔액: {btc_balance}")
     st.write("🚀 AI 콘텐츠를 NFT로 등록하고 거래하세요!")
@@ -318,8 +411,13 @@ def nft_marketplace():
         nft_description = st.text_area("NFT 설명")
         nft_price = st.number_input("NFT 가격 (코인)", min_value=1, value=10)
         nft_image = st.file_uploader("NFT 이미지 업로드", type=["png", "jpg", "jpeg"])
-        # 이미지 업로드가 없는 경우 이미지 생성 프롬프트 입력
         image_prompt = st.text_input("이미지 생성 프롬프트 (이미지 업로드 없을 경우)", value="창의적인 NFT 아트워크")
+        # NFT 등록 시에도 저작권 등록 및 대여 서비스 옵션 제공
+        nft_copyright_option = st.checkbox("저작권 등록 요청", value=False)
+        nft_lease_option = st.checkbox("저작권 대여 서비스 요청", value=False)
+        nft_lease_conditions = ""
+        if nft_lease_option:
+            nft_lease_conditions = st.text_area("대여 조건 입력 (예: 대여 기간, 비용 등)")
         submitted_nft = st.form_submit_button("NFT 등록")
     
     if submitted_nft:
@@ -327,7 +425,6 @@ def nft_marketplace():
             with st.spinner("이미지 분석 중..."):
                 time.sleep(2)
                 analysis_result = "분석 결과: 이 이미지는 창의적이고 독창적입니다."
-            # 실제 파일 저장 또는 임시 base64 인코딩 (예시)
             file_contents = nft_image.read()
             base64_img = base64.b64encode(file_contents).decode("utf-8")
             image_url = f"data:image/png;base64,{base64_img}"
@@ -342,13 +439,34 @@ def nft_marketplace():
                 st.error("이미지 생성에 실패했습니다.")
                 return
         
+        # NFT 저작권 등록 처리 (옵션)
+        nft_copyright_registered = False
+        nft_copyright_cert = ""
+        nft_copyright_eligibility = ""
+        if nft_copyright_option and image_url:
+            nft_copyright_cert, nft_copyright_eligibility = register_copyright(image_url)
+            nft_copyright_registered = True
+
+        # NFT 저작권 대여(라이선스) 처리 (옵션)
+        nft_lease_contract = ""
+        nft_lease_eligibility = ""
+        if nft_lease_option and image_url and nft_lease_conditions.strip():
+            nft_lease_contract, nft_lease_eligibility = register_copyright_lease(image_url, nft_lease_conditions)
+
         nft = {
             "id": int(time.time()),
             "title": nft_title,
             "description": nft_description + "\n" + analysis_result,
             "price": nft_price,
             "imageURL": image_url,
-            "owner": st.session_state["user_profile"]["username"]
+            "owner": st.session_state["user_profile"]["username"],
+            "copyright_registered": nft_copyright_registered,
+            "copyright_cert": nft_copyright_cert,
+            "copyright_eligibility": nft_copyright_eligibility,
+            "copyright_lease_requested": nft_lease_option,
+            "lease_conditions": nft_lease_conditions,
+            "lease_contract": nft_lease_contract,
+            "lease_eligibility": nft_lease_eligibility
         }
         nfts = json.loads(st.session_state["nfts"])
         nfts.append(nft)
@@ -367,6 +485,18 @@ def nft_marketplace():
             st.write(f"**소유자:** {nft['owner']}")
             if nft['imageURL']:
                 st.image(nft['imageURL'], width=250)
+            if nft.get("copyright_registered"):
+                st.write(f"🔒 저작권 등록 완료: {nft.get('copyright_cert')}")
+                st.write(f"📌 상태: {nft.get('copyright_eligibility')}")
+            else:
+                st.write("🆓 저작권 미등록")
+            if nft.get("copyright_lease_requested"):
+                if nft.get("lease_contract"):
+                    st.write(f"💼 대여 계약 ID: {nft.get('lease_contract')}")
+                    st.write(f"📌 대여 조건: {nft.get('lease_eligibility')}")
+                    st.write(f"📝 대여 조건 상세: {nft.get('lease_conditions')}")
+                else:
+                    st.write("💼 대여 서비스 요청됨 (조건 미설정)")
             st.write("---")
 
 # -------------------------
