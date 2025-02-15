@@ -85,6 +85,9 @@ class AIContent:
 CONTENT_FILE = "ai_contents.json"
 
 def load_contents():
+    """
+    기존 JSON 파일에 image_url 키가 없을 경우 None으로 설정하여 오류를 방지합니다.
+    """
     if not os.path.exists(CONTENT_FILE):
         return []
     try:
@@ -96,7 +99,7 @@ def load_contents():
     
     contents = []
     for item in data:
-        # 기존 데이터에는 image_url이 없을 수도 있으니 get으로 가져옴
+        # 기존 JSON에 image_url 키가 없으면 None을 반환
         image_url = item.get("image_url", None)
         content = AIContent(
             title=item["title"],
@@ -237,10 +240,11 @@ def create_ai_content():
         # 이미지 처리
         image_url = None
         if uploaded_image is not None:
-            # 예시: 이미지를 base64로 인코딩(임시). 실제로는 서버나 클라우드에 업로드 후 URL 반환을 권장.
+            # 예시: 이미지를 base64로 인코딩(임시). 
+            # 실제로는 S3 등 클라우드에 업로드 후 해당 URL을 받는 방식을 권장.
             file_contents = uploaded_image.read()
             base64_img = base64.b64encode(file_contents).decode("utf-8")
-            # data URI 스키마로 표시 (Streamlit image에서 인식 가능)
+            # data URI 스키마로 표시 (Streamlit의 st.image에서 인식 가능)
             image_url = f"data:image/png;base64,{base64_img}"
             st.success("이미지 업로드 완료!")
         else:
