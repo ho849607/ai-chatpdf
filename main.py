@@ -122,9 +122,12 @@ def generate_ai_content(prompt):
         return f"⚠️ 오류 발생: {e}"
 
 # -------------------------
-# 이미지 생성 API 호출 (예: DALL·E)
+# 이미지 생성 API 호출 (DALL·E)
 # -------------------------
 def generate_image(prompt):
+    if not openai.api_key:
+        st.error("⚠️ OpenAI API 키가 설정되지 않았습니다!")
+        return None
     try:
         response = openai.Image.create(
             prompt=prompt,
@@ -132,22 +135,24 @@ def generate_image(prompt):
             size="512x512"  # 원하는 이미지 크기
         )
         image_url = response['data'][0]['url']
+        st.write("✅ 이미지 생성 성공!")
         return image_url
     except Exception as e:
-        return f"이미지 생성 오류: {e}"
+        st.error(f"⚠️ 이미지 생성 오류: {e}")
+        return None
 
 # -------------------------
 # Web3 결제 시스템 (모의: 가상화폐 결제)
 # -------------------------
 def process_crypto_payment(amount):
-    time.sleep(1)
+    time.sleep(1)  # 결제 처리 모의 지연
     return True, f"✅ 결제 성공: {amount} 코인 전송 완료!"
 
 # -------------------------
 # 비트코인 잔액 조회 (모의 API)
 # -------------------------
 def fetch_bitcoin_balance():
-    time.sleep(1)
+    time.sleep(1)  # 조회 처리 모의 지연
     return "2.5 BTC"
 
 # -------------------------
@@ -190,6 +195,9 @@ def create_ai_content():
     price = st.number_input("💰 가격 (가상화폐)", min_value=1, value=10)
     creator = st.text_input("✍️ 크리에이터 이름", "익명")
     if st.button("🎨 AI 콘텐츠 생성"):
+        if not description:
+            st.error("⚠️ 설명을 입력해주세요.")
+            return
         with st.spinner("AI가 콘텐츠 생성 중..."):
             file_text = generate_ai_content(description)
             new_content = AIContent(title, description, price, creator, file_text)
@@ -218,6 +226,8 @@ def content_marketplace():
                     content.purchase_count += 1
                     save_contents(contents)
                     st.success(message)
+                else:
+                    st.error("⚠️ 결제 실패!")
 
 # -------------------------
 # 3) NFT 콘텐츠 거래 (NFT 등록 및 잔액 확인)
@@ -235,22 +245,27 @@ def nft_marketplace():
         nft_description = st.text_area("NFT 설명")
         nft_price = st.number_input("NFT 가격 (코인)", min_value=1, value=10)
         nft_image = st.file_uploader("NFT 이미지 업로드", type=["png", "jpg", "jpeg"])
-        # 추가: 이미지 생성 프롬프트 (업로드 안된 경우)
+        # 이미지 업로드가 없는 경우 이미지 생성 프롬프트 입력
         image_prompt = st.text_input("이미지 생성 프롬프트 (이미지 업로드 없을 경우)", value="창의적인 NFT 아트워크")
         submitted_nft = st.form_submit_button("NFT 등록")
+    
     if submitted_nft:
         if nft_image is not None:
             with st.spinner("이미지 분석 중..."):
                 time.sleep(2)
                 analysis_result = "분석 결과: 이 이미지는 창의적이고 독창적입니다."
-            # 실제 파일 URL은 저장 시스템 연동 필요
-            image_url = "uploaded_image_placeholder_url"
+            # 실제 파일 저장 및 URL 처리 로직 필요 (여기서는 placeholder 사용)
+            image_url = "https://via.placeholder.com/512.png?text=Uploaded+Image"
             st.success("이미지 분석 완료!")
         else:
-            # 이미지 생성 API 호출
             with st.spinner("이미지 생성 중..."):
                 image_url = generate_image(image_prompt)
-            analysis_result = "이미지 자동 생성"
+            if image_url:
+                analysis_result = "이미지 자동 생성"
+            else:
+                st.error("이미지 생성에 실패했습니다.")
+                return
+        
         nft = {
             "id": int(time.time()),
             "title": nft_title,
@@ -274,11 +289,13 @@ def nft_marketplace():
             st.write(f"**설명:** {nft['description']}")
             st.write(f"**가격:** {nft['price']} 코인")
             st.write(f"**소유자:** {nft['owner']}")
-            st.image(nft['imageURL'], width=250)
+            if nft['imageURL']:
+                st.image(nft['imageURL'], width=250)
             st.write("---")
 
 # -------------------------
-# 실행
+# 앱 실행
 # -------------------------
 if __name__ == "__main__":
     main()
+
