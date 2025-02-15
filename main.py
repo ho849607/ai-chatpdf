@@ -5,6 +5,7 @@ import streamlit as st
 from dotenv import load_dotenv
 import time
 import hashlib
+import base64
 
 # -------------------------
 # 환경 변수 로드 (OpenAI API)
@@ -66,16 +67,17 @@ class Blockchain:
 idea_blockchain = Blockchain(difficulty=2)
 
 # -------------------------
-# AI 콘텐츠 생성 & Web3 결제 시스템 (콘텐츠 모델)
+# AI 콘텐츠 모델 (image_url 필드 추가)
 # -------------------------
 class AIContent:
-    def __init__(self, title, description, price, creator, file_text="", purchase_count=0):
+    def __init__(self, title, description, price, creator, file_text="", purchase_count=0, image_url=None):
         self.title = title
         self.description = description
         self.price = price
         self.creator = creator
         self.file_text = file_text
         self.purchase_count = purchase_count
+        self.image_url = image_url  # 이미지 URL 추가
 
 # -------------------------
 # 전자책(JSON) 저장 (여기서는 AI 콘텐츠 저장)
@@ -94,11 +96,32 @@ def load_contents():
     
     contents = []
     for item in data:
-        contents.append(AIContent(**item))
+        # 기존 데이터에는 image_url이 없을 수도 있으니 get으로 가져옴
+        image_url = item.get("image_url", None)
+        content = AIContent(
+            title=item["title"],
+            description=item["description"],
+            price=item["price"],
+            creator=item["creator"],
+            file_text=item.get("file_text", ""),
+            purchase_count=item.get("purchase_count", 0),
+            image_url=image_url
+        )
+        contents.append(content)
     return contents
 
 def save_contents(contents):
-    data = [vars(content) for content in contents]
+    data = []
+    for c in contents:
+        data.append({
+            "title": c.title,
+            "description": c.description,
+            "price": c.price,
+            "creator": c.creator,
+            "file_text": c.file_text,
+            "purchase_count": c.purchase_count,
+            "image_url": c.image_url
+        })
     try:
         with open(CONTENT_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -194,17 +217,56 @@ def create_ai_content():
     description = st.text_area("📄 설명")
     price = st.number_input("💰 가격 (가상화폐)", min_value=1, value=10)
     creator = st.text_input("✍️ 크리에이터 이름", "익명")
+
+    # 이미지 업로드 또는 DALL·E 프롬프트
+    st.markdown("**이미지 등록 방법**")
+    col1, col2 = st.columns(2)
+    with col1:
+        uploaded_image = st.file_uploader("직접 업로드 (png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
+    with col2:
+        image_prompt = st.text_input("DALL·E 프롬프트 (미업로드 시 자동생성)", value="귀여운 토끼 사진")
+
     if st.button("🎨 AI 콘텐츠 생성"):
         if not description:
             st.error("⚠️ 설명을 입력해주세요.")
             return
-        with st.spinner("AI가 콘텐츠 생성 중..."):
+
+        with st.spinner("AI가 텍스트 콘텐츠 생성 중..."):
             file_text = generate_ai_content(description)
-            new_content = AIContent(title, description, price, creator, file_text)
-            contents = st.session_state["contents"]
-            contents.append(new_content)
-            save_contents(contents)
-            st.success("✅ AI 콘텐츠 생성 완료!")
+
+        # 이미지 처리
+        image_url = None
+        if uploaded_image is not None:
+            # 예시: 이미지를 base64로 인코딩(임시). 실제로는 서버나 클라우드에 업로드 후 URL 반환을 권장.
+            file_contents = uploaded_image.read()
+            base64_img = base64.b64encode(file_contents).decode("utf-8")
+            # data URI 스키마로 표시 (Streamlit image에서 인식 가능)
+            image_url = f"data:image/png;base64,{base64_img}"
+            st.success("이미지 업로드 완료!")
+        else:
+            # DALL·E로 자동 생성
+            with st.spinner("DALL·E가 이미지를 생성 중..."):
+                created_url = generate_image(image_prompt)
+                if created_url:
+                    image_url = created_url
+
+        # AI 콘텐츠 객체 생성
+        new_content = AIContent(
+            title=title, 
+            description=description, 
+            price=price, 
+            creator=creator, 
+            file_text=file_text,
+            image_url=image_url
+        )
+
+        # 세션 및 파일에 저장
+        contents = st.session_state["contents"]
+        contents.append(new_content)
+        save_contents(contents)
+
+        st.success("✅ AI 콘텐츠 생성 완료!")
+        st.balloons()
 
 # -------------------------
 # 2) Web3 결제 & 마켓플레이스
@@ -215,11 +277,18 @@ def content_marketplace():
     if not contents:
         st.write("🚨 등록된 콘텐츠가 없습니다.")
         return
+
     for idx, content in enumerate(contents):
-        with st.expander(f"{idx+1}. {content.title}"):
+        with st.expander(f"{content.title}"):
             st.write(f"📝 설명: {content.description}")
             st.write(f"💰 가격: {content.price} 코인")
             st.write(f"🎨 크리에이터: {content.creator}")
+            
+            # 이미지 표시
+            if content.image_url:
+                st.image(content.image_url, use_column_width=True)
+
+            # 결제 및 구매 버튼
             if st.button("💳 결제 및 구매", key=f"buy_{idx}"):
                 success, message = process_crypto_payment(content.price)
                 if success:
@@ -254,13 +323,16 @@ def nft_marketplace():
             with st.spinner("이미지 분석 중..."):
                 time.sleep(2)
                 analysis_result = "분석 결과: 이 이미지는 창의적이고 독창적입니다."
-            # 실제 파일 저장 및 URL 처리 로직 필요 (여기서는 placeholder 사용)
-            image_url = "https://via.placeholder.com/512.png?text=Uploaded+Image"
-            st.success("이미지 분석 완료!")
+            # 실제 파일 저장 또는 임시 base64 인코딩 (예시)
+            file_contents = nft_image.read()
+            base64_img = base64.b64encode(file_contents).decode("utf-8")
+            image_url = f"data:image/png;base64,{base64_img}"
+            st.success("이미지 업로드 및 분석 완료!")
         else:
             with st.spinner("이미지 생성 중..."):
-                image_url = generate_image(image_prompt)
-            if image_url:
+                created_url = generate_image(image_prompt)
+            if created_url:
+                image_url = created_url
                 analysis_result = "이미지 자동 생성"
             else:
                 st.error("이미지 생성에 실패했습니다.")
@@ -298,4 +370,3 @@ def nft_marketplace():
 # -------------------------
 if __name__ == "__main__":
     main()
-
