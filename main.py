@@ -1,560 +1,474 @@
-import os
-import json
-import openai
-import streamlit as st
-from dotenv import load_dotenv
-import time
-import hashlib
-import base64
+# legal_agent_streamlit_app.py
+# -*- coding: utf-8 -*-
+import io
+import re
+from dataclasses import dataclass, asdict
+from typing import List, Dict, Any, Tuple
 
-# -------------------------
-# 번역 문자열 (한국어/English)
-# -------------------------
-translations = {
-    "lang_title": {"ko": "언어", "en": "Language"},
-    "title": {"ko": "🚀 Sharehost: AI 콘텐츠 & Web3 결제", "en": "🚀 Sharehost: AI Content & Web3 Payment"},
-    "menu_AI": {"ko": "AI 콘텐츠 생성", "en": "AI Content Creation"},
-    "menu_Web3": {"ko": "Web3 결제 & 마켓플레이스", "en": "Web3 Payment & Marketplace"},
-    "menu_NFT": {"ko": "NFT 콘텐츠 거래", "en": "NFT Content Trading (NFT)"},
-    "create_ai_subheader": {"ko": "🧠 AI 콘텐츠 생성", "en": "🧠 AI Content Creation"},
-    "content_title": {"ko": "📌 콘텐츠 제목", "en": "📌 Content Title"},
-    "description": {"ko": "📄 설명", "en": "📄 Description"},
-    "price_coin": {"ko": "💰 가격 (코인 단위)", "en": "💰 Price (in Coins)"},
-    "creator": {"ko": "✍️ 크리에이터 이름", "en": "✍️ Creator Name"},
-    "image_registration": {"ko": "**이미지 등록 방법**", "en": "**Image Registration Method**"},
-    "upload_direct": {"ko": "직접 업로드 (png, jpg, jpeg)", "en": "Upload directly (png, jpg, jpeg)"},
-    "dalle_prompt": {"ko": "DALL·E 프롬프트 (미업로드 시 자동생성)", "en": "DALL·E Prompt (Auto generate if not uploaded)"},
-    "copyright_request": {"ko": "저작권 등록 요청", "en": "Request Copyright Registration"},
-    "lease_request": {"ko": "저작권 대여 서비스 요청", "en": "Request Copyright Lease Service"},
-    "lease_conditions": {"ko": "대여 조건 입력 (예: 대여 기간, 비용 등)", "en": "Enter lease conditions (e.g., duration, cost, etc.)"},
-    "generate_ai_button": {"ko": "🎨 AI 콘텐츠 생성", "en": "🎨 Generate AI Content"},
-    "enter_description": {"ko": "설명을 입력해주세요.", "en": "Please enter a description."},
-    "generating_text": {"ko": "AI가 텍스트 콘텐츠 생성 중...", "en": "Generating text content with AI..."},
-    "upload_success": {"ko": "이미지 업로드 완료!", "en": "Image uploaded successfully!"},
-    "generating_image": {"ko": "DALL·E가 이미지를 생성 중...", "en": "Generating image using DALL·E..."},
-    "copyright_registered_text": {"ko": "저작권 등록 완료", "en": "Copyright Registered"},
-    "no_copyright": {"ko": "저작권 미등록", "en": "No Copyright Registration"},
-    "lease_contract_id": {"ko": "대여 계약 ID", "en": "Lease Contract ID"},
-    "lease_conditions_label": {"ko": "대여 조건", "en": "Lease Conditions"},
-    "lease_conditions_detail": {"ko": "대여 조건 상세", "en": "Detailed Lease Conditions"},
-    "ai_content_success": {"ko": "✅ AI 콘텐츠 생성 완료!", "en": "✅ AI Content Generation Complete!"},
-    "marketplace_subheader": {"ko": "🛒 AI 콘텐츠 마켓플레이스", "en": "🛒 AI Content Marketplace"},
-    "no_content": {"ko": "등록된 콘텐츠가 없습니다.", "en": "No content registered."},
-    "label_description": {"ko": "📝 설명:", "en": "📝 Description:"},
-    "label_price": {"ko": "💰 가격:", "en": "💰 Price:"},
-    "label_creator": {"ko": "🎨 크리에이터:", "en": "🎨 Creator:"},
-    "purchase_button": {"ko": "💳 결제 및 구매", "en": "💳 Purchase"},
-    "payment_success": {"ko": "결제 성공", "en": "Payment Successful"},
-    "payment_failure": {"ko": "결제 실패", "en": "Payment Failed"},
-    "nft_marketplace_subheader": {"ko": "🖼 NFT 마켓플레이스", "en": "🖼 NFT Marketplace"},
-    "bitcoin_balance": {"ko": "현재 비트코인 잔액:", "en": "Current Bitcoin Balance:"},
-    "nft_register_instruction": {"ko": "🚀 AI 콘텐츠를 NFT로 등록하고 거래하세요!", "en": "Register and trade your AI content as NFTs!"},
-    "nft_registration": {"ko": "NFT 등록", "en": "Register NFT"},
-    "nft_title": {"ko": "NFT 제목", "en": "NFT Title"},
-    "nft_description": {"ko": "NFT 설명", "en": "NFT Description"},
-    "nft_price": {"ko": "NFT 가격 (코인 단위)", "en": "NFT Price (in Coins)"},
-    "nft_upload_image": {"ko": "NFT 이미지 업로드", "en": "Upload NFT Image"},
-    "nft_dalle_prompt": {"ko": "이미지 생성 프롬프트 (미업로드 시 자동생성)", "en": "Image Generation Prompt (Auto generate if not uploaded)"},
-    "nft_register_success": {"ko": "NFT 등록 완료되었습니다!", "en": "NFT Registered Successfully!"},
-    "no_nft": {"ko": "등록된 NFT가 없습니다.", "en": "No NFTs registered."},
-    "coin": {"ko": "코인", "en": "Coin"},
-    "krw": {"ko": "원", "en": "KRW"},
-    "usd": {"ko": "USD", "en": "USD"},
-    "lease_requested_text": {"ko": "대여 서비스 요청됨 (조건 미설정)", "en": "Lease service requested (conditions not set)"},
+import streamlit as st
+
+# 선택 라이브러리 (없어도 앱은 돌아감)
+try:
+    from docx import Document  # python-docx
+except Exception:
+    Document = None
+
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+
+# =====================[ UI 기본 설정 ]=====================
+st.set_page_config(page_title="SpeciAI — 법률 의견서 에이전트", page_icon="⚖️", layout="wide")
+st.title("⚖️ SpeciAI — 법률 의견서 에이전트 (Streamlit Demo v2)")
+
+# 데모 대시보드 이미지 노출
+DASHBOARD_IMG = "/mnt/data/4fa0f4cb-0166-4cbe-ad02-6cfdd2cd101f.png"
+with st.expander("📷 데모 대시보드 이미지 보기/숨기기", expanded=False):
+    try:
+        st.image(DASHBOARD_IMG, caption="샘플 대시보드 UI (참고용)", use_container_width=True)
+    except Exception as e:
+        st.info("이미지를 불러올 수 없습니다. 경로 확인 필요.")
+        st.exception(e)
+
+st.markdown("---")
+
+# =====================[ 데이터 모델 ]=====================
+@dataclass
+class BusinessInfo:
+    사업체명: str = ""
+    업종: str = ""
+    국가: str = "대한민국"
+    웹사이트: str = ""
+    담당자명: str = ""
+    연락처: str = ""
+    특징: str = ""
+
+@dataclass
+class Engagement:
+    목적: str = ""       # 예: 개인정보 처리방침 개정 검토
+    법률분야: str = ""   # 개인정보/전자금융/노동/지식재산/공정거래/계약/기타
+    추가설명: str = ""
+
+@dataclass
+class OpinionDoc:
+    제목: str = ""
+    본문: str = ""
+    리스크라벨: List[Tuple[str, str, str]] = None  # (이슈, 심각도, 근거)
+
+# =====================[ 규칙 기반 도우미 ]=====================
+# (keyword, severity, label, rationale)
+RISK_KEYWORDS = [
+    ("민감정보", "심각", "개인정보보호법(민감정보)", "민감정보는 별도 동의 및 암호화·접근통제가 필요합니다."),
+    ("주민등록번호", "심각", "개인정보보호법(고유식별정보)", "고유식별정보는 엄격한 보호·마스킹이 요구됩니다."),
+    ("전자금융", "주의", "전자금융거래법", "전자지급/PG 등은 보안인증·사고책임 규제가 있습니다."),
+    ("결제", "주의", "전자금융거래법/여신전문금융", "결제·수납은 결제대행·분할납부 등 규제 검토 필요."),
+    ("쿠키", "주의", "통신비밀보호/개인정보", "행태정보 수집·광고 쿠키는 고지·동의·옵트아웃 요구."),
+    ("미성년자", "심각", "청소년보호/개인정보", "14세 미만 동의·연령확인·유해매체 차단 필요."),
+    ("노동자", "주의", "근로기준법/산안법", "근로시간·휴게·연장수당·산안 준수 필요."),
+    ("하도급", "주의", "하도급법/공정거래", "우월적 지위 남용 금지, 서면발급 의무."),
+    ("상표", "정보", "상표법", "표장 유사·식별력·선사용·선행조사 권장."),
+    ("특허", "정보", "특허법", "신규성·진보성·명세서 기재요건 검토."),
+    ("위치정보", "주의", "위치정보보호법", "위치사업 신고·동의·보관기간 제한."),
+    ("클라우드", "정보", "전자문서/정보보호", "국외 이전·가명처리·접근통제 정책 검토."),
+]
+
+def risk_scan(text: str) -> List[Tuple[str, str, str]]:
+    """아주 단순한 키워드 기반 리스크 라벨링(데모)."""
+    results = []
+    low = text.lower()
+    for kw, sev, label, why in RISK_KEYWORDS:
+        if kw.lower() in low:
+            results.append((label, sev, why))
+    uniq = []
+    seen = set()
+    for item in results:
+        if item not in seen:
+            uniq.append(item)
+            seen.add(item)
+    return uniq
+
+def suggest_edits(text: str) -> List[str]:
+    """간단한 문체/구조 제안 (LLM 연결 전 임시)."""
+    edits = []
+    if len(text.strip()) < 400:
+        edits.append("문서 길이가 짧습니다. 배경-사실관계-쟁점-검토-결론의 5단 구성으로 확장하세요.")
+    if "할 수 있다" in text:
+        edits.append("표현이 모호합니다. '할 수 있다' 대신 허용요건·책임주체를 특정하세요.")
+    if text.count("…") > 0:
+        edits.append("생략부호(…) 대신 정확한 인용 또는 구체적 사실을 기재하세요.")
+    if "개인정보" in text and "동의" not in text:
+        edits.append("개인정보 처리의 동의/법적 근거(제15조 등)를 명시하세요.")
+    if "전자금융" in text and "보안" not in text:
+        edits.append("전자금융은 보안·인증·사고책임 분담 규정 언급이 필요합니다.")
+    if "근로" in text and "근로시간" not in text:
+        edits.append("노동 이슈는 근로시간·휴게·연장수당·서면계약 필수사항을 점검하세요.")
+    return edits or ["큰 오류는 없으나, 판례·유권해석 인용으로 설득력을 높이세요."]
+
+def multi_agent_outline(domain: str, purpose: str, extras: Dict[str, Any]) -> Dict[str, str]:
+    """도메인별 자동 뼈대(멀티-에이전트 합성 데모)."""
+    base = {
+        "배경": f"{purpose} 관련 사실관계 요약 및 사업모델 설명.",
+        "쟁점": "관련 법령/가이드라인 대비 위법/위험 포인트 정리.",
+        "검토": "법령 조문·판례·감독지침·관행 순으로 검토.",
+        "개선방안": "위험 완화 대안 및 실행 체크리스트.",
+        "결론": "가능/불가/조건부 가능 등 최종 의견.",
+    }
+    if domain == "개인정보":
+        base["검토"] = "개인정보보호법·시행령/고시·국외이전·가명정보 처리 가능성."
+        base["개선방안"] = "최소수집·목적외 이용 금지·보관기간·암호화/접근통제·마스킹 정책."
+    elif domain == "전자금융":
+        base["검토"] = "전자금융거래법·여전법·PG/선불/지급수단·정산흐름."
+        base["개선방안"] = "인증/보안 아키텍처·사고책임 분담·약관 고지·정산/보관."
+    elif domain == "노동":
+        base["검토"] = "근로기준법·근로계약 필수기재·연장/야간/휴일수당·52시간제."
+        base["개선방안"] = "근로시간 시스템·휴게·임금명세서·4대보험·산안 리스크."
+    elif domain == "지식재산":
+        base["검토"] = "특허/상표/저작권 요건·권리범위·침해 가능성."
+        base["개선방안"] = "선행조사·출원 전 공개 금지·표장/디자인 가이드."
+    elif domain == "공정거래":
+        base["검토"] = "하도급/대리점/플랫폼 공정화·우월적 지위 남용 금지."
+        base["개선방안"] = "표준계약서·서면교부·단가조정·보복금지 모니터링."
+    return base
+
+# 인라인 하이라이트용 색상
+HIGHLIGHT_COLORS = {"심각": "#fee2e2", "주의": "#fff7ed", "정보": "#e2e8f0"}
+
+def highlight_risks_html(text: str) -> str:
+    """키워드에 색 배경을 주는 간단한 HTML 마킹."""
+    html = st.html_escape(text) if hasattr(st, "html_escape") else text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    # 긴 키워드가 먼저 매칭되도록 길이순 정렬
+    sorted_kw = sorted(RISK_KEYWORDS, key=lambda x: len(x[0]), reverse=True)
+    for kw, sev, label, why in sorted_kw:
+        color = HIGHLIGHT_COLORS.get(sev, "#e2e8f0")
+        pattern = re.escape(kw)
+        html = re.sub(
+            pattern,
+            f'<span style="background:{color}; padding:0 4px; border-radius:4px;" title="{label} — {why}">{kw}</span>',
+            html,
+            flags=re.IGNORECASE,
+        )
+    return f"<div style='line-height:1.7'>{html}</div>"
+
+# 에이전트 역제안(도메인별 체크리스트)
+DOMAIN_SUGGESTIONS = {
+    "개인정보": [
+        "수집항목·처리목적·보유기간 표로 정리",
+        "민감정보/고유식별정보 분리 저장 및 접근통제",
+        "국외이전 여부/경로/보관지역 명시",
+        "파기절차·파기기록 로깅 설계",
+    ],
+    "전자금융": [
+        "정산흐름(예치·분리보관) 도식화",
+        "이중인증(FIDO/OTP) 적용 범위 결정",
+        "사고 책임·면책 요건 약관 반영",
+        "모의해킹/보안 점검 주기 설정",
+    ],
+    "노동": [
+        "근로시간 시스템(주/연장/야간) 설정",
+        "근로계약서 필수기재 항목 점검",
+        "임금명세서 템플릿 적용",
+        "산업안전 체크리스트 도입",
+    ],
+    "지식재산": [
+        "선행조사 리포트 첨부",
+        "출원전 공개 금지 정책 공지",
+        "상표/디자인 가이드 배포",
+        "오픈소스 라이선스 검토",
+    ],
+    "공정거래": [
+        "표준계약서 채택(서면교부)",
+        "단가조정·보복금지 조항 명문화",
+        "대리점·플랫폼 수수료 투명화",
+        "우월적 지위 남용 감시 체계",
+    ],
+    "계약": [
+        "책임제한·손해배상·면책 조항 구체화",
+        "준거법·관할·분쟁해결 절차 명시",
+        "SLA/성능지표/위반시 구제수단",
+        "비밀정보 범위와 예외 명확화",
+    ],
+    "기타": ["관련 업권 가이드라인 수집", "업계 표준/관행 대비표 작성"],
 }
 
-def tr(key, lang):
-    return translations.get(key, {}).get(lang, key)
+# =====================[ 세션 상태 ]=====================
+if "biz" not in st.session_state:
+    st.session_state.biz = BusinessInfo()
+if "eng" not in st.session_state:
+    st.session_state.eng = Engagement()
+if "extras" not in st.session_state:
+    st.session_state.extras = {}
+if "opinion" not in st.session_state:
+    st.session_state.opinion = OpinionDoc()
+if "log" not in st.session_state:
+    st.session_state.log = []  # 간단 작업 로그
 
-# -------------------------
-# 환율 상수 (예시: 1 코인 = 1,000원, 1 코인 = 1.3USD)
-# -------------------------
-KRW_RATE = 1000  # 1 코인당 1,000원
-USD_RATE = 1.3   # 1 코인당 1.3 달러
+def log(msg: str):
+    st.session_state.log.append(msg)
 
-# -------------------------
-# 환경 변수 로드 (OpenAI API)
-# -------------------------
-load_dotenv('.env')
-openai_api_key = os.getenv('OPENAI_API_KEY')
-if not openai_api_key:
-    st.warning("⚠️ OPENAI_API_KEY가 필요합니다.")
-else:
-    openai.api_key = openai_api_key
+# =====================[ 사이드바: 흐름 선택 ]=====================
+st.sidebar.header("작업 흐름")
+flow = st.sidebar.radio(
+    "무엇을 하시겠어요?",
+    ["① 기본정보 수집", "② 도메인 추가질문", "③ 초안 리뷰", "④ 의견서 생성", "⑤ 출력/발송"],
+    index=0
+)
 
-# -------------------------
-# 사이드바 언어 선택
-# -------------------------
-language_choice = st.sidebar.radio(tr("lang_title", "en"), ["한국어", "English"])
-lang = "ko" if language_choice == "한국어" else "en"
-
-# -------------------------
-# 블록체인 구현 (NFT & AI 콘텐츠 인증)
-# -------------------------
-class Block:
-    def __init__(self, index, timestamp, data, previous_hash, nonce=0):
-        self.index = index
-        self.timestamp = timestamp
-        self.data = data
-        self.previous_hash = previous_hash
-        self.nonce = nonce
-        self.hash = self.calculate_hash()
-
-    def calculate_hash(self):
-        block_string = json.dumps({
-            "index": self.index,
-            "timestamp": self.timestamp,
-            "data": self.data,
-            "previous_hash": self.previous_hash,
-            "nonce": self.nonce
-        }, sort_keys=True).encode()
-        return hashlib.sha256(block_string).hexdigest()
-
-    def mine_block(self, difficulty):
-        target = "0" * difficulty
-        while self.hash[:difficulty] != target:
-            self.nonce += 1
-            self.hash = self.calculate_hash()
-        st.write(f"🔗 {tr('copyright_registered_text', lang)}: {self.hash}")
-
-class Blockchain:
-    def __init__(self, difficulty=2):
-        self.chain = [self.create_genesis_block()]
-        self.difficulty = difficulty
-
-    def create_genesis_block(self):
-        return Block(0, time.time(), "Genesis Block", "0")
-
-    def get_latest_block(self):
-        return self.chain[-1]
-
-    def add_block(self, data):
-        new_index = len(self.chain)
-        new_block = Block(new_index, time.time(), data, self.get_latest_block().hash)
-        new_block.mine_block(self.difficulty)
-        self.chain.append(new_block)
-
-# 전역 블록체인 인스턴스 (예: NFT 등록 내역 등)
-idea_blockchain = Blockchain(difficulty=2)
-
-# -------------------------
-# AI 콘텐츠 모델 (저작권/대여 관련 필드 추가)
-# -------------------------
-class AIContent:
-    def __init__(self, title, description, price, creator, file_text="", purchase_count=0, image_url=None,
-                 copyright_registered=False, copyright_cert="",
-                 copyright_eligibility="",
-                 copyright_lease_requested=False,
-                 lease_conditions="",
-                 lease_contract="",
-                 lease_eligibility=""):
-        self.title = title
-        self.description = description
-        self.price = price
-        self.creator = creator
-        self.file_text = file_text
-        self.purchase_count = purchase_count
-        self.image_url = image_url
-        # 저작권 등록 정보
-        self.copyright_registered = copyright_registered
-        self.copyright_cert = copyright_cert
-        self.copyright_eligibility = copyright_eligibility
-        # 저작권 대여(라이선스) 관련 정보
-        self.copyright_lease_requested = copyright_lease_requested
-        self.lease_conditions = lease_conditions
-        self.lease_contract = lease_contract
-        self.lease_eligibility = lease_eligibility
-
-# -------------------------
-# 전자책(JSON) 저장 (여기서는 AI 콘텐츠 저장)
-# -------------------------
-CONTENT_FILE = "ai_contents.json"
-
-def load_contents():
-    if not os.path.exists(CONTENT_FILE):
-        return []
-    try:
-        with open(CONTENT_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        st.error(f"⚠️ 데이터 로드 오류: {e}")
-        return []
-    
-    contents = []
-    for item in data:
-        content = AIContent(
-            title=item["title"],
-            description=item["description"],
-            price=item["price"],
-            creator=item["creator"],
-            file_text=item.get("file_text", ""),
-            purchase_count=item.get("purchase_count", 0),
-            image_url=item.get("image_url", None),
-            copyright_registered=item.get("copyright_registered", False),
-            copyright_cert=item.get("copyright_cert", ""),
-            copyright_eligibility=item.get("copyright_eligibility", ""),
-            copyright_lease_requested=item.get("copyright_lease_requested", False),
-            lease_conditions=item.get("lease_conditions", ""),
-            lease_contract=item.get("lease_contract", ""),
-            lease_eligibility=item.get("lease_eligibility", "")
-        )
-        contents.append(content)
-    return contents
-
-def save_contents(contents):
-    data = []
-    for c in contents:
-        data.append({
-            "title": c.title,
-            "description": c.description,
-            "price": c.price,
-            "creator": c.creator,
-            "file_text": c.file_text,
-            "purchase_count": c.purchase_count,
-            "image_url": c.image_url,
-            "copyright_registered": c.copyright_registered,
-            "copyright_cert": c.copyright_cert,
-            "copyright_eligibility": c.copyright_eligibility,
-            "copyright_lease_requested": c.copyright_lease_requested,
-            "lease_conditions": c.lease_conditions,
-            "lease_contract": c.lease_contract,
-            "lease_eligibility": c.lease_eligibility
-        })
-    try:
-        with open(CONTENT_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        st.error(f"⚠️ 데이터 저장 오류: {e}")
-
-# -------------------------
-# GPT API 호출 (AI 콘텐츠 자동 생성)
-# -------------------------
-def generate_ai_content(prompt):
-    if not openai.api_key:
-        return f"⚠️ 오류: OpenAI API 키 필요"
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500
-        )
-        return response.choices[0].message["content"]
-    except Exception as e:
-        return f"⚠️ 오류 발생: {e}"
-
-# -------------------------
-# 이미지 생성 API 호출 (DALL·E)
-# -------------------------
-def generate_image(prompt):
-    if not openai.api_key:
-        st.error(f"⚠️ OpenAI API 키가 설정되지 않았습니다!")
-        return None
-    try:
-        response = openai.Image.create(
-            prompt=prompt,
-            n=1,
-            size="512x512"
-        )
-        image_url = response['data'][0]['url']
-        st.write(f"✅ {tr('upload_success', lang)}")
-        return image_url
-    except Exception as e:
-        st.error(f"⚠️ 이미지 생성 오류: {e}")
-        return None
-
-# -------------------------
-# 저작권 등록 (모의 기능)
-# -------------------------
-def register_copyright(image_url):
-    if not image_url:
-        return None, "이미지 없음"
-    registration_id = f"COPY-{hashlib.sha256(image_url.encode()).hexdigest()[:10]}"
-    eligibility = tr("copyright_registered_text", lang)
-    return registration_id, eligibility
-
-# -------------------------
-# 저작권 대여(라이선스) 등록 (모의 기능)
-# -------------------------
-def register_copyright_lease(image_url, lease_conditions):
-    if not image_url or not lease_conditions.strip():
-        return None, "대여 조건 미설정"
-    contract_id = f"LEASE-{hashlib.sha256((image_url + lease_conditions).encode()).hexdigest()[:10]}"
-    eligibility = "대여 가능" if lang == "ko" else "Lease Available"
-    return contract_id, eligibility
-
-# -------------------------
-# Web3 결제 시스템 (모의: 가상화폐 결제)
-# -------------------------
-def process_crypto_payment(amount):
-    time.sleep(1)
-    return True, f"✅ {tr('payment_success', lang)}: {amount} {tr('coin', lang)} 전송 완료!"
-
-# -------------------------
-# 비트코인 잔액 조회 (모의 API)
-# -------------------------
-def fetch_bitcoin_balance():
-    time.sleep(1)
-    return "2.5 BTC"
-
-# -------------------------
-# 세션 초기화
-# -------------------------
-if "contents" not in st.session_state:
-    st.session_state["contents"] = load_contents()
-
-if "nfts" not in st.session_state:
-    st.session_state["nfts"] = "[]"
-
-if "user_profile" not in st.session_state:
-    st.session_state["user_profile"] = {
-        "username": "익명사용자" if lang == "ko" else "Anonymous",
-        "experience": "개발, 스타트업 참여 경험 있음" if lang == "ko" else "Experience in development and startups",
-        "preferences": "핀테크, AI, 블록체인" if lang == "ko" else "Fintech, AI, Blockchain",
-        "membership": False
-    }
-
-# -------------------------
-# 메인 Streamlit 앱
-# -------------------------
-def main():
-    st.title(tr("title", lang))
-    menu = st.sidebar.radio("", [tr("menu_AI", lang), tr("menu_Web3", lang), tr("menu_NFT", lang)])
-    if menu == tr("menu_AI", lang):
-        create_ai_content()
-    elif menu == tr("menu_Web3", lang):
-        content_marketplace()
+with st.sidebar.expander("📝 작업 로그", expanded=False):
+    if st.session_state.log:
+        for i, m in enumerate(st.session_state.log[-20:], 1):
+            st.write(f"{i}. {m}")
     else:
-        nft_marketplace()
+        st.caption("로그가 여기에 표시됩니다.")
 
-# -------------------------
-# 1) AI 콘텐츠 생성 & 업로드
-# -------------------------
-def create_ai_content():
-    st.subheader(tr("create_ai_subheader", lang))
-    title = st.text_input(tr("content_title", lang))
-    description = st.text_area(tr("description", lang))
-    price = st.number_input(tr("price_coin", lang), min_value=1, value=10)
-    creator = st.text_input(tr("creator", lang), "익명" if lang == "ko" else "Anonymous")
+# =====================[ ① 기본정보 수집 ]=====================
+if flow == "① 기본정보 수집":
+    st.subheader("① 사업체/고객사 기본정보")
+    with st.form("basic_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            name = st.text_input("사업체명", st.session_state.biz.사업체명)
+            industry = st.text_input("업종", st.session_state.biz.업종)
+            country = st.text_input("국가", st.session_state.biz.국가 or "대한민국")
+            site = st.text_input("웹사이트(URL)", st.session_state.biz.웹사이트)
+        with col2:
+            pic = st.text_input("담당자명", st.session_state.biz.담당자명)
+            contact = st.text_input("연락처/이메일", st.session_state.biz.연락처)
+            desc = st.text_area("특징/요약(선택)", st.session_state.biz.특징, height=120)
+        submitted = st.form_submit_button("저장")
+    if submitted:
+        st.session_state.biz = BusinessInfo(name, industry, country, site, pic, contact, desc)
+        st.success("기본정보 저장 완료")
+        log("기본정보 저장")
+        st.json(asdict(st.session_state.biz))
 
-    st.markdown(tr("image_registration", lang))
-    col1, col2 = st.columns(2)
-    with col1:
-        uploaded_image = st.file_uploader(tr("upload_direct", lang), type=["png", "jpg", "jpeg"])
-    with col2:
-        image_prompt = st.text_input(tr("dalle_prompt", lang), value="귀여운 토끼 사진" if lang == "ko" else "Cute rabbit photo")
+    st.markdown("—")
+    st.subheader("자문 개요")
+    with st.form("engagement_form"):
+        purpose = st.text_input("자문 목적 (예: 개인정보 처리방침 개정 검토)", st.session_state.eng.목적)
+        domain = st.selectbox("질문하는 법률 분야", ["개인정보","전자금융","노동","지식재산","공정거래","계약","기타"], index=0)
+        note = st.text_area("추가 설명", st.session_state.eng.추가설명, height=120)
+        ok = st.form_submit_button("저장")
+    if ok:
+        st.session_state.eng = Engagement(purpose, domain, note)
+        st.success("자문 개요 저장 완료")
+        log(f"자문 개요 저장 — 분야: {domain}")
+        st.json(asdict(st.session_state.eng))
 
-    copyright_option = st.checkbox(tr("copyright_request", lang), value=False)
-    lease_option = st.checkbox(tr("lease_request", lang), value=False)
-    lease_conditions_input = ""
-    if lease_option:
-        lease_conditions_input = st.text_area(tr("lease_conditions", lang))
-        
-    if st.button(tr("generate_ai_button", lang)):
-        if not description:
-            st.error(tr("enter_description", lang))
-            return
+# =====================[ ② 도메인 추가질문 + 역제안 ]=====================
+elif flow == "② 도메인 추가질문":
+    st.subheader("② 도메인별 필수 추가정보")
+    domain = st.session_state.eng.법률분야 or st.selectbox("법률 분야 선택", ["개인정보","전자금융","노동","지식재산","공정거래","계약","기타"])
+    extras: Dict[str, Any] = st.session_state.extras or {}
 
-        with st.spinner(tr("generating_text", lang)):
-            file_text = generate_ai_content(description)
-
-        image_url = None
-        if uploaded_image is not None:
-            file_contents = uploaded_image.read()
-            base64_img = base64.b64encode(file_contents).decode("utf-8")
-            image_url = f"data:image/png;base64,{base64_img}"
-            st.success(tr("upload_success", lang))
+    with st.form("extras_form"):
+        if domain == "개인정보":
+            c1, c2 = st.columns(2)
+            with c1:
+                extras["개인정보_수집항목"] = st.text_area("수집 항목", extras.get("개인정보_수집항목",""))
+                extras["개인정보_처리목적"] = st.text_area("처리 목적", extras.get("개인정보_처리목적",""))
+            with c2:
+                extras["보유기간"] = st.text_input("보유기간 (예: 1년 보관 후 지체없이 파기)", extras.get("보유기간",""))
+                extras["국외이전"] = st.selectbox("국외이전 여부", ["아니오","예"], index=0 if extras.get("국외이전","아니오")=="아니오" else 1)
+        elif domain == "전자금융":
+            extras["결제유형"] = st.multiselect("결제유형", ["PG","선불충전","송금","BNPL","구독결제"], default=extras.get("결제유형",[]))
+            extras["인증수준"] = st.selectbox("인증 수준", ["기본","강화"], index=0 if extras.get("인증수준","기본")=="기본" else 1)
+            extras["정산주체"] = st.text_input("정산 주체/흐름", extras.get("정산주체",""))
+        elif domain == "노동":
+            extras["근로형태"] = st.selectbox("근로형태", ["정규직","계약직","프리랜서","인턴"],
+                                         index={"정규직":0,"계약직":1,"프리랜서":2,"인턴":3}.get(extras.get("근로형태","정규직"),0))
+            extras["근로시간"] = st.text_input("근로시간 (예: 주40시간)", extras.get("근로시간",""))
+            extras["임금체계"] = st.text_input("임금체계/수당", extras.get("임금체계",""))
+        elif domain == "지식재산":
+            extras["이슈"] = st.multiselect("이슈", ["특허","상표","저작권","영업비밀"], default=extras.get("이슈",[]))
+            extras["선행조사"] = st.selectbox("선행조사 여부", ["미실시","진행중","완료"],
+                                          index={"미실시":0,"진행중":1,"완료":2}.get(extras.get("선행조사","미실시"),0))
+        elif domain == "공정거래":
+            extras["거래유형"] = st.multiselect("거래유형", ["하도급","대리점","플랫폼","유통"], default=extras.get("거래유형",[]))
+            extras["우월적지위"] = st.selectbox("우월적 지위 의심", ["아니오","예"], index=0 if extras.get("우월적지위","아니오")=="아니오" else 1)
         else:
-            with st.spinner(tr("generating_image", lang)):
-                created_url = generate_image(image_prompt)
-                if created_url:
-                    image_url = created_url
+            extras["요청사항"] = st.text_area("기타 요청/배경", extras.get("요청사항",""))
 
-        cr_registered = False
-        cr_cert = ""
-        cr_eligibility = ""
-        if copyright_option and image_url:
-            cr_cert, cr_eligibility = register_copyright(image_url)
-            cr_registered = True
+        st.markdown("—")
+        st.markdown("### 🤝 에이전트 역제안")
+        sug = DOMAIN_SUGGESTIONS.get(domain, DOMAIN_SUGGESTIONS["기타"])
+        checked = []
+        cols = st.columns(2)
+        for i, s in enumerate(sug):
+            with cols[i % 2]:
+                if st.checkbox(s, key=f"sugg_{i}", value=False):
+                    checked.append(s)
 
-        lease_contract = ""
-        lease_eligibility = ""
-        if lease_option and image_url and lease_conditions_input.strip():
-            lease_contract, lease_eligibility = register_copyright_lease(image_url, lease_conditions_input)
+        saved = st.form_submit_button("저장")
+    if saved:
+        extras["역제안"] = checked
+        st.session_state.extras = extras
+        st.success("도메인 추가정보/역제안 저장 완료")
+        log(f"도메인 정보 저장 — {domain}, 역제안 {len(checked)}건")
+        st.json(st.session_state.extras)
 
-        new_content = AIContent(
-            title=title, 
-            description=description, 
-            price=price, 
-            creator=creator, 
-            file_text=file_text,
-            image_url=image_url,
-            copyright_registered=cr_registered,
-            copyright_cert=cr_cert,
-            copyright_eligibility=cr_eligibility,
-            copyright_lease_requested=lease_option,
-            lease_conditions=lease_conditions_input,
-            lease_contract=lease_contract,
-            lease_eligibility=lease_eligibility
-        )
+# =====================[ ③ 초안 리뷰 ]=====================
+elif flow == "③ 초안 리뷰":
+    st.subheader("③ 사용자가 작성한 의견서 초안 — 자동 리뷰")
 
-        contents = st.session_state["contents"]
-        contents.append(new_content)
-        save_contents(contents)
+    # 파일 업로드(.txt/.md)
+    up = st.file_uploader("초안 파일 업로드 (.txt / .md)", type=["txt","md"])
+    init_text = st.session_state.opinion.본문 or ""
+    if up is not None:
+        init_text = up.read().decode("utf-8", errors="ignore")
+        log(f"초안 파일 업로드 — {up.name}")
 
-        st.success(tr("ai_content_success", lang))
-        st.balloons()
+    draft = st.text_area("초안 텍스트", height=280, value=init_text)
 
-# -------------------------
-# 2) Web3 결제 & 마켓플레이스
-# -------------------------
-def content_marketplace():
-    st.subheader(tr("marketplace_subheader", lang))
-    contents = st.session_state["contents"]
-    if not contents:
-        st.write(tr("no_content", lang))
-        return
+    col = st.columns([1,1,1,5])
+    with col[0]:
+        run = st.button("리뷰 실행")
+    with col[1]:
+        save_btn = st.button("현재 텍스트 저장")
+    with col[2]:
+        clear_btn = st.button("지우기")
 
-    for idx, content in enumerate(contents):
-        with st.expander(f"{content.title}"):
-            st.write(f"{tr('label_description', lang)} {content.description}")
-            price_text = (f"{content.price} {tr('coin', lang)} / "
-                          f"{content.price * KRW_RATE} {tr('krw', lang)} / "
-                          f"{content.price * USD_RATE:.2f} {tr('usd', lang)}")
-            st.write(f"{tr('label_price', lang)} {price_text}")
-            st.write(f"{tr('label_creator', lang)} {content.creator}")
-            
-            if content.image_url:
-                st.image(content.image_url, use_column_width=True)
+    if save_btn:
+        st.session_state.opinion.본문 = draft
+        st.success("초안 텍스트 저장")
+        log("초안 텍스트 저장")
 
-            if content.image_url:
-                if content.copyright_registered:
-                    st.write(f"🔒 {tr('copyright_registered_text', lang)}: {content.copyright_cert}")
-                    st.write(f"📌 {content.copyright_eligibility}")
+    if clear_btn:
+        st.session_state.opinion.본문 = ""
+        st.warning("초안 텍스트를 비웠습니다.")
+        log("초안 텍스트 초기화")
+
+    if run:
+        st.session_state.opinion.본문 = draft
+        labels = risk_scan(draft)
+        edits = suggest_edits(draft)
+        log(f"리뷰 실행 — 리스크 {len(labels)}건, 제안 {len(edits)}건")
+
+        st.markdown("#### 📛 규제 리스크 라벨")
+        if not labels:
+            st.success("표시할 리스크 키워드를 찾지 못했습니다.")
+        for label, sev, why in labels:
+            c = st.columns([1,1,8])
+            with c[0]:
+                if sev == "심각":
+                    st.markdown('<span style="background:#EF4444;color:white;padding:4px 8px;border-radius:8px;">심각</span>', unsafe_allow_html=True)
+                elif sev == "주의":
+                    st.markdown('<span style="background:#F59E0B;color:white;padding:4px 8px;border-radius:8px;">주의</span>', unsafe_allow_html=True)
                 else:
-                    st.write(f"🆓 {tr('no_copyright', lang)}")
-            
-            if content.copyright_lease_requested:
-                if content.lease_contract:
-                    st.write(f"💼 {tr('lease_contract_id', lang)}: {content.lease_contract}")
-                    st.write(f"📌 {tr('lease_conditions_label', lang)}: {content.lease_eligibility}")
-                    st.write(f"📝 {tr('lease_conditions_detail', lang)}: {content.lease_conditions}")
-                else:
-                    st.write(tr("lease_requested_text", lang))
+                    st.markdown('<span style="background:#64748B;color:white;padding:4px 8px;border-radius:8px;">정보</span>', unsafe_allow_html=True)
+            with c[1]:
+                st.write(f"**{label}**")
+            with c[2]:
+                st.write(why)
 
-            if st.button(tr("purchase_button", lang), key=f"buy_{idx}"):
-                success, message = process_crypto_payment(content.price)
-                if success:
-                    content.purchase_count += 1
-                    save_contents(contents)
-                    st.success(message)
-                else:
-                    st.error(tr("payment_failure", lang))
+        st.markdown("#### ✍️ 수정 제안")
+        for i, e in enumerate(edits, 1):
+            st.markdown(f"- {i}. {e}")
 
-# -------------------------
-# 3) NFT 콘텐츠 거래 (NFT 등록 및 잔액 확인)
-# -------------------------
-def nft_marketplace():
-    st.subheader(tr("nft_marketplace_subheader", lang))
-    btc_balance = fetch_bitcoin_balance()
-    st.info(f"{tr('bitcoin_balance', lang)} {btc_balance}")
-    st.write(tr("nft_register_instruction", lang))
-    
-    st.markdown(f"### {tr('nft_registration', lang)}")
-    with st.form(key="nft_form", clear_on_submit=True):
-        nft_title = st.text_input(tr("nft_title", lang))
-        nft_description = st.text_area(tr("nft_description", lang))
-        nft_price = st.number_input(tr("nft_price", lang), min_value=1, value=10)
-        nft_image = st.file_uploader(tr("nft_upload_image", lang), type=["png", "jpg", "jpeg"])
-        image_prompt = st.text_input(tr("nft_dalle_prompt", lang), value="창의적인 NFT 아트워크" if lang == "ko" else "Creative NFT Artwork")
-        nft_copyright_option = st.checkbox(tr("copyright_request", lang), value=False)
-        nft_lease_option = st.checkbox(tr("lease_request", lang), value=False)
-        nft_lease_conditions = ""
-        if nft_lease_option:
-            nft_lease_conditions = st.text_area(tr("lease_conditions", lang))
-        submitted_nft = st.form_submit_button(tr("nft_registration", lang))
-    
-    if submitted_nft:
-        if nft_image is not None:
-            with st.spinner("이미지 분석 중..."):
-                time.sleep(2)
-                analysis_result = "분석 결과: 이 이미지는 창의적이고 독창적입니다." if lang == "ko" else "Analysis: This image is creative and unique."
-            file_contents = nft_image.read()
-            base64_img = base64.b64encode(file_contents).decode("utf-8")
-            image_url = f"data:image/png;base64,{base64_img}"
-            st.success("이미지 업로드 및 분석 완료!" if lang == "ko" else "Image upload and analysis complete!")
+        st.markdown("#### 🔎 인라인 하이라이트")
+        st.markdown(highlight_risks_html(draft), unsafe_allow_html=True)
+
+        # 라벨 내보내기 (CSV/XLSX)
+        st.markdown("#### ⬇️ 리스크 라벨 내보내기")
+        if labels:
+            rows = [{"label": l, "severity": s, "rationale": w} for (l, s, w) in labels]
+            csv = "label,severity,rationale\n" + "\n".join([f"{r['label']},{r['severity']},{r['rationale']}" for r in rows])
+            st.download_button("CSV 다운로드", data=csv.encode("utf-8"), file_name="risk_labels.csv", mime="text/csv")
+            if pd is not None:
+                df = pd.DataFrame(rows)
+                bio = io.BytesIO()
+                with pd.ExcelWriter(bio, engine="xlsxwriter") as writer:
+                    df.to_excel(writer, index=False, sheet_name="labels")
+                st.download_button("Excel(.xlsx) 다운로드", data=bio.getvalue(), file_name="risk_labels.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
-            with st.spinner(tr("generating_image", lang)):
-                created_url = generate_image(image_prompt)
-            if created_url:
-                image_url = created_url
-                analysis_result = "이미지 자동 생성" if lang == "ko" else "Image auto-generated"
-            else:
-                st.error("이미지 생성에 실패했습니다." if lang == "ko" else "Image generation failed.")
-                return
-        
-        nft_cr_registered = False
-        nft_cr_cert = ""
-        nft_cr_eligibility = ""
-        if nft_copyright_option and image_url:
-            nft_cr_cert, nft_cr_eligibility = register_copyright(image_url)
-            nft_cr_registered = True
+            st.caption("내보낼 라벨이 없습니다.")
 
-        nft_lease_contract = ""
-        nft_lease_eligibility = ""
-        if nft_lease_option and image_url and nft_lease_conditions.strip():
-            nft_lease_contract, nft_lease_eligibility = register_copyright_lease(image_url, nft_lease_conditions)
+# =====================[ ④ 의견서 생성 ]=====================
+elif flow == "④ 의견서 생성":
+    st.subheader("④ 의견서 자동 생성 (멀티 에이전트 합성 데모)")
 
-        nft = {
-            "id": int(time.time()),
-            "title": nft_title,
-            "description": nft_description + "\n" + analysis_result,
-            "price": nft_price,
-            "imageURL": image_url,
-            "owner": st.session_state["user_profile"]["username"],
-            "copyright_registered": nft_cr_registered,
-            "copyright_cert": nft_cr_cert,
-            "copyright_eligibility": nft_cr_eligibility,
-            "copyright_lease_requested": nft_lease_option,
-            "lease_conditions": nft_lease_conditions,
-            "lease_contract": nft_lease_contract,
-            "lease_eligibility": nft_lease_eligibility
-        }
-        nfts = json.loads(st.session_state["nfts"])
-        nfts.append(nft)
-        st.session_state["nfts"] = json.dumps(nfts, ensure_ascii=False, indent=2)
-        st.success(tr("nft_register_success", lang))
-    
-    st.markdown(f"### {tr('no_nft', lang) if json.loads(st.session_state['nfts'])==[] else ''}")
-    nfts = json.loads(st.session_state["nfts"])
-    if not nfts:
-        st.write(tr("no_nft", lang))
+    title = st.text_input("의견서 제목", value=st.session_state.opinion.제목 or f"[{st.session_state.eng.법률분야}] {st.session_state.eng.목적} 의견서".strip())
+    purpose = st.session_state.eng.목적 or st.text_input("자문 목적(없다면 입력)", "")
+    domain = st.session_state.eng.법률분야 or st.selectbox("법률 분야 선택", ["개인정보","전자금융","노동","지식재산","공정거래","계약","기타"])
+
+    if st.button("초안 생성"):
+        outline = multi_agent_outline(domain, purpose, st.session_state.extras)
+        body_parts = [f"## {sec}\n{txt}" for sec, txt in outline.items()]
+        body = f"# {title}\n\n" + "\n\n".join(body_parts)
+        labels = risk_scan(body)
+
+        st.session_state.opinion = OpinionDoc(제목=title, 본문=body, 리스크라벨=labels)
+        st.success("의견서 초안 생성 완료")
+        log(f"의견서 초안 생성 — 라벨 {len(labels)}건")
+
+        st.markdown(st.session_state.opinion.본문)
+
+        st.markdown("#### 📛 자동 리스크 라벨")
+        for label, sev, why in labels or []:
+            c = st.columns([1,1,8])
+            with c[0]:
+                if sev == "심각":
+                    st.markdown('<span style="background:#EF4444;color:white;padding:4px 8px;border-radius:8px;">심각</span>', unsafe_allow_html=True)
+                elif sev == "주의":
+                    st.markdown('<span style="background:#F59E0B;color:white;padding:4px 8px;border-radius:8px;">주의</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span style="background:#64748B;color:white;padding:4px 8px;border-radius:8px;">정보</span>', unsafe_allow_html=True)
+            with c[1]:
+                st.write(f"**{label}**")
+            with c[2]:
+                st.write(why)
+
+# =====================[ ⑤ 출력/발송 ]=====================
+elif flow == "⑤ 출력/발송":
+    st.subheader("⑤ 의견서 출력 및 발송 준비")
+
+    if not st.session_state.opinion.본문:
+        st.warning("먼저 ③ 초안 리뷰 또는 ④ 의견서 생성에서 본문을 준비해 주세요.")
     else:
-        for nft in nfts:
-            st.write(f"**{tr('nft_title', lang)}:** {nft['title']}")
-            st.write(f"**{tr('nft_description', lang)}:** {nft['description']}")
-            nft_price_text = (f"{nft['price']} {tr('coin', lang)} / "
-                              f"{nft['price'] * KRW_RATE} {tr('krw', lang)} / "
-                              f"{nft['price'] * USD_RATE:.2f} {tr('usd', lang)}")
-            st.write(f"**{tr('label_price', lang)}** {nft_price_text}")
-            st.write(f"**{tr('label_creator', lang)}** {nft['owner']}")
-            if nft['imageURL']:
-                st.image(nft['imageURL'], width=250)
-            if nft.get("copyright_registered"):
-                st.write(f"🔒 {tr('copyright_registered_text', lang)}: {nft.get('copyright_cert')}")
-                st.write(f"📌 {nft.get('copyright_eligibility')}")
-            else:
-                st.write(f"🆓 {tr('no_copyright', lang)}")
-            if nft.get("copyright_lease_requested"):
-                if nft.get("lease_contract"):
-                    st.write(f"💼 {tr('lease_contract_id', lang)}: {nft.get('lease_contract')}")
-                    st.write(f"📌 {tr('lease_conditions_label', lang)}: {nft.get('lease_eligibility')}")
-                    st.write(f"📝 {tr('lease_conditions_detail', lang)}: {nft.get('lease_conditions')}")
-                else:
-                    st.write(tr("lease_requested_text", lang))
-            st.write("---")
+        st.markdown("#### 미리보기")
+        st.markdown(st.session_state.opinion.본문)
 
-# -------------------------
-# 앱 실행
-# -------------------------
-if __name__ == "__main__":
-    main()
+        # Markdown 내보내기
+        st.markdown("#### 📤 내보내기")
+        md_bytes = st.session_state.opinion.본문.encode("utf-8")
+        st.download_button("⬇️ Markdown(.md) 다운로드", data=md_bytes, file_name="opinion.md", mime="text/markdown")
+
+        # DOCX 내보내기 (설치 시)
+        if Document is not None:
+            if st.button("DOCX 파일 만들기"):
+                doc = Document()
+                for line in st.session_state.opinion.본문.splitlines():
+                    if line.startswith("# "):
+                        doc.add_heading(line.replace("# ", ""), level=1)
+                    elif line.startswith("## "):
+                        doc.add_heading(line.replace("## ", ""), level=2)
+                    else:
+                        doc.add_paragraph(line)
+                bio = io.BytesIO()
+                doc.save(bio)
+                st.download_button("⬇️ Word(.docx) 다운로드", data=bio.getvalue(), file_name="opinion.docx",
+                                   mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        else:
+            st.info("python-docx 미설치로 DOCX 버튼 숨김 (설치: pip install python-docx)")
+
+        # 이메일 .eml 미리보기
+        st.markdown("#### 📧 이메일 발송(미리보기 .eml 생성)")
+        to_addr = st.text_input("받는사람 이메일", value="")
+        from_addr = st.text_input("보내는사람 이메일", value="noreply@example.com")
+        subject = st.text_input("제목", value=st.session_state.opinion.제목 or "법률 의견서")
+        body_text = st.text_area("이메일 본문", value="의견서를 첨부드립니다.\n\n감사합니다.", height=120)
+
+        if st.button("EML 미리보기 생성"):
+            from email.message import EmailMessage
+            msg = EmailMessage()
+            msg["To"] = to_addr
+            msg["From"] = from_addr
+            msg["Subject"] = subject
+            msg.set_content(body_text + "\n\n---\n" + st.session_state.opinion.본문)
+
+            eml_bytes = msg.as_bytes()
+            st.download_button("⬇️ EML 다운로드", data=eml_bytes, file_name="opinion.eml", mime="message/rfc822")
+            st.success("이메일 파일(.eml)이 생성되었습니다. 로컬 메일 클라이언트에서 열어 전송하세요.")
+
+        st.markdown("---")
+        st.caption("브라우저 자동입력/오피스 자동화는 보안상 별도 워커(Selenium 등)에서 실행 권장. 본 데모는 파일 생성까지만 제공합니다.")
